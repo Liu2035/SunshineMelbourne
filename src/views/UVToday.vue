@@ -1,0 +1,534 @@
+<template>
+  <div class="uv-today">
+
+    <!-- Location bar -->
+    <div class="location-bar">
+      <span class="location-icon">📍</span>
+      <span v-if="locationName" class="location-name">{{ locationName }}</span>
+      <span v-else class="location-name muted">Location not set</span>
+      <button class="change-btn" @click="showSearch = !showSearch">
+        {{ showSearch ? 'Cancel' : 'Change' }}
+      </button>
+    </div>
+
+    <!-- Manual city search -->
+    <form v-if="showSearch" class="search-form" @submit.prevent="searchByCity">
+      <input
+        v-model="cityInput"
+        type="text"
+        placeholder="Enter suburb or city (e.g. Melbourne)"
+        class="city-input"
+        autocomplete="off"
+      />
+      <button type="submit" class="search-btn" :disabled="!cityInput.trim()">Search</button>
+    </form>
+
+    <!-- Loading state -->
+    <div v-if="loading" class="state-card">
+      <div class="spinner"></div>
+      <p>Fetching UV data…</p>
+    </div>
+
+    <!-- Error state -->
+    <div v-else-if="error" class="state-card error-card">
+      <span class="state-icon">⚠️</span>
+      <p>{{ error }}</p>
+      <button class="retry-btn" @click="init">Try again</button>
+    </div>
+
+    <!-- No location yet -->
+    <div v-else-if="!uvIndex && uvIndex !== 0" class="state-card prompt-card">
+      <span class="state-icon">🌏</span>
+      <p>Allow location access or search for a city to see today's UV level.</p>
+      <button class="locate-btn" @click="getByGeolocation">Use my location</button>
+    </div>
+
+    <!-- UV data loaded -->
+    <template v-else>
+      <!-- UV Hero card -->
+      <div class="uv-hero" :style="{ background: uvInfo.gradient }">
+        <div class="uv-number">{{ uvIndex }}</div>
+        <div class="uv-label">{{ uvInfo.label }}</div>
+        <p class="uv-message">{{ uvInfo.message }}</p>
+        <div class="uv-band" :style="{ background: uvInfo.color }"></div>
+      </div>
+
+      <!-- UV scale legend -->
+      <div class="uv-scale">
+        <div
+          v-for="band in uvBands"
+          :key="band.label"
+          class="scale-segment"
+          :class="{ active: band.label === uvInfo.label }"
+          :style="{ background: band.color }"
+        >
+          <span class="scale-range">{{ band.range }}</span>
+          <span class="scale-label">{{ band.label }}</span>
+        </div>
+      </div>
+
+      <!-- Clothing recommendations -->
+      <section class="clothing-section">
+        <h2 class="section-title">What to Wear Today</h2>
+        <p class="section-sub">Recommended for UV Index {{ uvIndex }} ({{ uvInfo.label }})</p>
+        <div class="clothing-grid">
+          <div
+            v-for="item in uvInfo.clothing"
+            :key="item.name"
+            class="clothing-card"
+          >
+            <div class="clothing-icon">{{ item.icon }}</div>
+            <div class="clothing-info">
+              <div class="clothing-name">{{ item.name }}</div>
+              <div class="clothing-reason">{{ item.reason }}</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Last updated -->
+      <p class="last-updated">Last updated: {{ lastUpdated }}</p>
+    </template>
+
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, onMounted } from 'vue'
+import axios from 'axios'
+
+const API_KEY = import.meta.env.VITE_OWM_API_KEY
+
+// --- State ---
+const uvIndex    = ref(null)
+const locationName = ref('')
+const loading    = ref(false)
+const error      = ref('')
+const showSearch = ref(false)
+const cityInput  = ref('')
+const lastUpdated = ref('')
+
+// --- UV band definitions ---
+const uvBands = [
+  { label: 'Low',       range: '0–2',  color: '#4caf50', textColor: '#fff' },
+  { label: 'Moderate',  range: '3–5',  color: '#f9c74f', textColor: '#1a1a2e' },
+  { label: 'High',      range: '6–7',  color: '#f77f00', textColor: '#fff' },
+  { label: 'Very High', range: '8–10', color: '#e63946', textColor: '#fff' },
+  { label: 'Extreme',   range: '11+',  color: '#7b2d8b', textColor: '#fff' },
+]
+
+// --- Clothing items per UV level ---
+const clothingByLevel = {
+  Low: [
+    { icon: '🕶️', name: 'Sunglasses', reason: 'UV can still affect your eyes even on mild days.' },
+    { icon: '🧴', name: 'SPF 30+ Sunscreen', reason: 'Apply if you are spending more than 30 minutes outside.' },
+  ],
+  Moderate: [
+    { icon: '🕶️', name: 'Sunglasses', reason: 'Protects eyes from moderate UV exposure.' },
+    { icon: '🧢', name: 'Hat', reason: 'A broad-brim hat shields your face, neck, and ears.' },
+    { icon: '🧴', name: 'SPF 30+ Sunscreen', reason: 'Apply 20 minutes before going out.' },
+  ],
+  High: [
+    { icon: '🕶️', name: 'Sunglasses', reason: 'High UV — eyes are vulnerable without protection.' },
+    { icon: '🧢', name: 'Wide-brim Hat', reason: 'Protects face, neck, and ears — areas frequently missed.' },
+    { icon: '🧴', name: 'SPF 50+ Sunscreen', reason: 'Apply generously and reapply every 2 hours.' },
+    { icon: '🌳', name: 'Seek Shade 10am–3pm', reason: 'UV is most intense at midday. Shade reduces exposure significantly.' },
+  ],
+  'Very High': [
+    { icon: '🕶️', name: 'Sunglasses', reason: 'UV at this level causes rapid eye damage.' },
+    { icon: '🧢', name: 'Wide-brim Hat', reason: 'Essential at this level — no exceptions.' },
+    { icon: '🧴', name: 'SPF 50+ Sunscreen', reason: 'Apply every 90 minutes or after swimming or sweating.' },
+    { icon: '👕', name: 'Protective Clothing', reason: 'Long sleeves and UPF-rated fabrics block UV effectively.' },
+    { icon: '🌳', name: 'Avoid Peak Hours', reason: 'Stay indoors or in full shade between 10am and 3pm.' },
+  ],
+  Extreme: [
+    { icon: '🚫', name: 'Avoid Outdoor Activity', reason: 'Extreme UV causes skin damage within minutes.' },
+    { icon: '🕶️', name: 'Sunglasses', reason: 'Wrap-around UV400 sunglasses are essential.' },
+    { icon: '🧢', name: 'Wide-brim Hat', reason: 'A full-coverage hat is non-negotiable at this level.' },
+    { icon: '🧴', name: 'SPF 50+ Sunscreen', reason: 'Apply heavily; reapply every 60–90 minutes.' },
+    { icon: '👕', name: 'Full-coverage Clothing', reason: 'Wear long sleeves, long pants, and UPF 50+ rated fabrics.' },
+  ],
+}
+
+// --- Computed UV info ---
+const uvInfo = computed(() => {
+  const uv = uvIndex.value ?? 0
+  let band
+  if (uv <= 2)      band = uvBands[0]
+  else if (uv <= 5) band = uvBands[1]
+  else if (uv <= 7) band = uvBands[2]
+  else if (uv <= 10) band = uvBands[3]
+  else              band = uvBands[4]
+
+  const messages = {
+    Low:       'Low UV today. You can enjoy being outdoors. Sunglasses are still a good idea.',
+    Moderate:  'Moderate UV. Wear a hat, sunglasses, and apply sunscreen if you are outside for more than 30 minutes.',
+    High:      'High UV — skin damage starts in as little as 25 minutes. Apply SPF 50+ and seek shade at midday.',
+    'Very High': 'Very high UV — unprotected skin can burn within 15 minutes. Cover up and limit time outdoors.',
+    Extreme:   'Extreme UV — avoid outdoor activities if possible. If you must go out, use maximum protection.',
+  }
+
+  const gradients = {
+    Low:       'linear-gradient(135deg, #2d6a4f 0%, #52b788 100%)',
+    Moderate:  'linear-gradient(135deg, #b5830a 0%, #f9c74f 100%)',
+    High:      'linear-gradient(135deg, #9c4a00 0%, #f77f00 100%)',
+    'Very High': 'linear-gradient(135deg, #8b0000 0%, #e63946 100%)',
+    Extreme:   'linear-gradient(135deg, #3d0042 0%, #7b2d8b 100%)',
+  }
+
+  return {
+    label:    band.label,
+    color:    band.color,
+    gradient: gradients[band.label],
+    message:  messages[band.label],
+    clothing: clothingByLevel[band.label],
+  }
+})
+
+// --- API helpers ---
+async function fetchUVByCoords(lat, lon) {
+  const res = await axios.get('https://api.openweathermap.org/data/3.0/onecall', {
+    params: { lat, lon, exclude: 'minutely,hourly,daily,alerts', appid: API_KEY }
+  })
+  return res.data.current.uvi
+}
+
+async function reverseGeocode(lat, lon) {
+  const res = await axios.get('https://api.openweathermap.org/geo/1.0/reverse', {
+    params: { lat, lon, limit: 1, appid: API_KEY }
+  })
+  const place = res.data[0]
+  return place ? `${place.name}, ${place.state ?? place.country}` : 'Unknown location'
+}
+
+async function forwardGeocode(city) {
+  const res = await axios.get('https://api.openweathermap.org/geo/1.0/direct', {
+    params: { q: city, limit: 1, appid: API_KEY }
+  })
+  if (!res.data.length) throw new Error(`No results found for "${city}". Try a different name.`)
+  return res.data[0]
+}
+
+// --- Actions ---
+async function getByGeolocation() {
+  if (!navigator.geolocation) {
+    error.value = 'Geolocation is not supported by your browser. Please search for a city instead.'
+    return
+  }
+  loading.value = true
+  error.value = ''
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      try {
+        const { latitude, longitude } = pos.coords
+        const [uv, name] = await Promise.all([
+          fetchUVByCoords(latitude, longitude),
+          reverseGeocode(latitude, longitude)
+        ])
+        uvIndex.value = Math.round(uv)
+        locationName.value = name
+        lastUpdated.value = new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })
+      } catch {
+        error.value = 'Unable to retrieve UV data. Please check your API key or try again.'
+      } finally {
+        loading.value = false
+      }
+    },
+    () => {
+      loading.value = false
+      showSearch.value = true
+      error.value = ''
+    }
+  )
+}
+
+async function searchByCity() {
+  if (!cityInput.value.trim()) return
+  loading.value = true
+  error.value = ''
+  showSearch.value = false
+  try {
+    const place = await forwardGeocode(cityInput.value.trim())
+    const uv = await fetchUVByCoords(place.lat, place.lon)
+    uvIndex.value = Math.round(uv)
+    locationName.value = `${place.name}, ${place.state ?? place.country}`
+    lastUpdated.value = new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })
+    cityInput.value = ''
+  } catch (e) {
+    error.value = e.message || 'Unable to retrieve UV data. Please try again.'
+  } finally {
+    loading.value = false
+  }
+}
+
+function init() {
+  error.value = ''
+  getByGeolocation()
+}
+
+onMounted(init)
+</script>
+
+<style scoped>
+.uv-today {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Location bar */
+.location-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.65rem 1rem;
+}
+
+.location-icon { font-size: 1rem; }
+
+.location-name {
+  flex: 1;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.location-name.muted {
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.change-btn {
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  transition: background var(--transition);
+}
+
+.change-btn:hover { background: var(--border); }
+
+/* Search form */
+.search-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.city-input {
+  flex: 1;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  outline: none;
+  transition: border-color var(--transition);
+}
+
+.city-input:focus { border-color: var(--color-high); }
+
+.search-btn {
+  padding: 0.65rem 1.2rem;
+  background: var(--color-high);
+  color: #fff;
+  font-weight: 600;
+  border-radius: var(--radius);
+  transition: opacity var(--transition);
+}
+
+.search-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.search-btn:not(:disabled):hover { opacity: 0.85; }
+
+/* State cards */
+.state-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 3rem 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.state-icon { font-size: 2.5rem; }
+
+.error-card { border-color: #fbc4c4; background: #fff5f5; }
+.error-card p { color: #c0392b; }
+
+.retry-btn, .locate-btn {
+  padding: 0.6rem 1.4rem;
+  border-radius: 8px;
+  font-weight: 600;
+  background: var(--color-high);
+  color: #fff;
+  transition: opacity var(--transition);
+}
+
+.retry-btn:hover, .locate-btn:hover { opacity: 0.85; }
+
+/* Spinner */
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--border);
+  border-top-color: var(--color-high);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* UV Hero */
+.uv-hero {
+  border-radius: var(--radius);
+  padding: 2.5rem 2rem;
+  color: #fff;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.uv-number {
+  font-size: 5rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -2px;
+}
+
+.uv-label {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-top: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.9;
+}
+
+.uv-message {
+  margin-top: 0.85rem;
+  font-size: 1rem;
+  max-width: 520px;
+  margin-left: auto;
+  margin-right: auto;
+  opacity: 0.92;
+  line-height: 1.55;
+}
+
+.uv-band {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  opacity: 0.6;
+}
+
+/* UV Scale */
+.uv-scale {
+  display: flex;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.scale-segment {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.55rem 0.25rem;
+  opacity: 0.45;
+  transition: opacity var(--transition);
+}
+
+.scale-segment.active {
+  opacity: 1;
+}
+
+.scale-range {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.scale-label {
+  font-size: 0.62rem;
+  font-weight: 500;
+  color: rgba(255,255,255,0.85);
+  margin-top: 2px;
+}
+
+/* Clothing section */
+.clothing-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+}
+
+.section-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.section-sub {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 1.25rem;
+}
+
+.clothing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem;
+}
+
+.clothing-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.85rem;
+}
+
+.clothing-icon {
+  font-size: 1.75rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.clothing-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 0.2rem;
+}
+
+.clothing-reason {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* Last updated */
+.last-updated {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+@media (max-width: 480px) {
+  .uv-number { font-size: 4rem; }
+  .uv-label  { font-size: 1.2rem; }
+  .clothing-grid { grid-template-columns: 1fr; }
+  .scale-label { display: none; }
+}
+</style>

@@ -1,0 +1,59 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --color-low: #4caf50;
+  --color-moderate: #f9c74f;
+  --color-high: #f77f00;
+  --color-very-high: #e63946;
+  --color-extreme: #7b2d8b;
+
+  --bg: #f9f6f0;
+  --surface: #ffffff;
+  --text-primary: #1a1a2e;
+  --text-secondary: #5c5c6b;
+  --border: #e2ddd6;
+  --nav-bg: #1a1a2e;
+  --nav-text: #f9f6f0;
+  --nav-active: #f77f00;
+
+  --radius: 14px;
+  --shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
+  --transition: 0.2s ease;
+
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  background: var(--bg);
+}
+
+body {
+  min-height: 100vh;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  font-size: 1rem;
+}
+
+input {
+  font-family: inherit;
+  font-size: 1rem;
+}

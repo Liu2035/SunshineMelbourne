@@ -86,6 +86,49 @@
         </div>
       </section>
 
+      <!-- Historical comparison -->
+      <div v-if="historyData?.available" class="history-card">
+        <div class="history-header">
+          <span class="history-icon">📅</span>
+          <div>
+            <div class="history-title">Historical Average for {{ historyData.city }}</div>
+            <div class="history-sub">Typical UV in {{ currentMonthLabel }}</div>
+          </div>
+          <div class="history-avg" :style="{ color: avgUviColor }">
+            {{ historyData.thisMonthAvg }}
+          </div>
+        </div>
+        <div class="history-comparison" v-if="historyData.thisMonthAvg !== null">
+          <span
+            class="comparison-badge"
+            :class="comparisonClass"
+          >{{ comparisonText }}</span>
+          <span class="comparison-detail">
+            Today's UV ({{ uvIndex }}) vs. {{ currentMonthLabel }} average ({{ historyData.thisMonthAvg }})
+          </span>
+        </div>
+        <div class="history-bar-row">
+          <div
+            v-for="h in historyData.history"
+            :key="h.month"
+            class="history-bar-col"
+            :class="{ 'current-month': h.month === historyData.currentMonth }"
+          >
+            <div class="bar-wrap">
+              <div
+                class="bar-fill"
+                :style="{ height: barHeight(h.avg_uvi) + '%', background: uviColor(h.avg_uvi) }"
+              ></div>
+            </div>
+            <span class="bar-label">{{ h.label }}</span>
+          </div>
+        </div>
+        <p class="history-note">
+          Source: ARPANSA / Data.gov.au — monthly average UV index for 8 Australian capital cities
+          (CC BY 2.5 AU)
+        </p>
+      </div>
+
       <!-- Last updated -->
       <p class="last-updated">Last updated: {{ lastUpdated }}</p>
     </template>
@@ -100,13 +143,14 @@ import axios from 'axios'
 const API_KEY = import.meta.env.VITE_OWM_API_KEY
 
 // --- State ---
-const uvIndex    = ref(null)
+const uvIndex      = ref(null)
 const locationName = ref('')
-const loading    = ref(false)
-const error      = ref('')
-const showSearch = ref(false)
-const cityInput  = ref('')
-const lastUpdated = ref('')
+const loading      = ref(false)
+const error        = ref('')
+const showSearch   = ref(false)
+const cityInput    = ref('')
+const lastUpdated  = ref('')
+const historyData  = ref(null)
 
 // --- UV band definitions ---
 const uvBands = [
@@ -150,6 +194,47 @@ const clothingByLevel = {
   ],
 }
 
+// --- History helpers ---
+const MONTH_LABELS = ['January','February','March','April','May','June',
+                      'July','August','September','October','November','December']
+const currentMonthLabel = MONTH_LABELS[new Date().getMonth()]
+
+const MAX_UVI = 14
+
+function barHeight(uvi) {
+  return Math.round((uvi / MAX_UVI) * 100)
+}
+
+function uviColor(uvi) {
+  if (uvi <= 2)  return '#4caf50'
+  if (uvi <= 5)  return '#f9c74f'
+  if (uvi <= 7)  return '#f77f00'
+  if (uvi <= 10) return '#e63946'
+  return '#7b2d8b'
+}
+
+const avgUviColor = computed(() =>
+  historyData.value?.thisMonthAvg != null
+    ? uviColor(historyData.value.thisMonthAvg)
+    : '#999'
+)
+
+const comparisonClass = computed(() => {
+  if (!historyData.value?.thisMonthAvg || uvIndex.value == null) return ''
+  const diff = uvIndex.value - historyData.value.thisMonthAvg
+  if (diff > 1)  return 'badge-above'
+  if (diff < -1) return 'badge-below'
+  return 'badge-typical'
+})
+
+const comparisonText = computed(() => {
+  if (!historyData.value?.thisMonthAvg || uvIndex.value == null) return ''
+  const diff = uvIndex.value - historyData.value.thisMonthAvg
+  if (diff > 1)  return '▲ Above average'
+  if (diff < -1) return '▼ Below average'
+  return '● Typical for this month'
+})
+
 // --- Computed UV info ---
 const uvInfo = computed(() => {
   const uv = uvIndex.value ?? 0
@@ -186,6 +271,15 @@ const uvInfo = computed(() => {
 })
 
 // --- API helpers ---
+async function fetchHistory(cityName) {
+  try {
+    const res = await axios.get(`/api/uv-history?city=${encodeURIComponent(cityName)}`)
+    historyData.value = res.data
+  } catch {
+    historyData.value = null
+  }
+}
+
 async function fetchUVByCoords(lat, lon) {
   const res = await axios.get('https://api.openweathermap.org/data/3.0/onecall', {
     params: { lat, lon, exclude: 'minutely,hourly,daily,alerts', appid: API_KEY }
@@ -228,6 +322,7 @@ async function getByGeolocation() {
         uvIndex.value = Math.round(uv)
         locationName.value = name
         lastUpdated.value = new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })
+        await fetchHistory(name)
       } catch {
         error.value = 'Unable to retrieve UV data. Please check your API key or try again.'
       } finally {
@@ -254,6 +349,7 @@ async function searchByCity() {
     locationName.value = `${place.name}, ${place.state ?? place.country}`
     lastUpdated.value = new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })
     cityInput.value = ''
+    await fetchHistory(place.name)
   } catch (e) {
     error.value = e.message || 'Unable to retrieve UV data. Please try again.'
   } finally {
@@ -516,6 +612,113 @@ onMounted(init)
   font-size: 0.8rem;
   color: var(--text-secondary);
   line-height: 1.4;
+}
+
+/* Historical comparison card */
+.history-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.history-header {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.history-icon { font-size: 1.5rem; flex-shrink: 0; }
+
+.history-title {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.history-sub {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.history-avg {
+  margin-left: auto;
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.history-comparison {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.comparison-badge {
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.25rem 0.65rem;
+  border-radius: 20px;
+}
+
+.badge-above   { background: #fde8e8; color: #c0392b; }
+.badge-below   { background: #e8f5e9; color: #2e7d32; }
+.badge-typical { background: #e3f2fd; color: #1565c0; }
+
+.comparison-detail {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+/* Monthly bar chart */
+.history-bar-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 80px;
+}
+
+.history-bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+}
+
+.history-bar-col.current-month .bar-label {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.bar-wrap {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+
+.bar-fill {
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  min-height: 3px;
+  transition: height 0.3s ease;
+}
+
+.bar-label {
+  font-size: 0.6rem;
+  color: var(--text-secondary);
+}
+
+.history-note {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
 }
 
 /* Last updated */

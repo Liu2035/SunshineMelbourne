@@ -1,9 +1,8 @@
 <template>
   <nav class="navbar">
-    <RouterLink to="/" class="brand">☀️ SunSmart</RouterLink>
+    <RouterLink to="/" class="brand">☀️ Healthy Sunshine Melbourne</RouterLink>
     <ul class="nav-links">
       <li><RouterLink to="/" :class="{ active: route.path === '/' }">UV Today</RouterLink></li>
-      <li><RouterLink to="/awareness" :class="{ active: route.path === '/awareness' }">Awareness</RouterLink></li>
       <li><RouterLink to="/protection" :class="{ active: route.path === '/protection' }">Protection</RouterLink></li>
     </ul>
   </nav>

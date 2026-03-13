@@ -1,12 +1,20 @@
 <template>
-  <NavBar />
-  <main class="page-content">
-    <RouterView />
-  </main>
+  <PasswordGate v-if="!authenticated" @authenticated="authenticated = true" />
+
+  <template v-else>
+    <NavBar />
+    <main class="page-content">
+      <RouterView />
+    </main>
+  </template>
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import NavBar from '@/components/NavBar.vue'
+import PasswordGate from '@/components/PasswordGate.vue'
+
+const authenticated = ref(sessionStorage.getItem('hsm_auth') === 'true')
 </script>
 
 <style scoped>

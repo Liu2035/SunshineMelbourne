@@ -1,27 +1,38 @@
 <template>
   <div class="uv-today">
 
-    <!-- Location bar -->
-    <div class="location-bar">
-      <span class="location-icon">📍</span>
-      <span v-if="locationName" class="location-name">{{ locationName }}</span>
-      <span v-else class="location-name muted">Location not set</span>
-      <button class="change-btn" @click="showSearch = !showSearch">
-        {{ showSearch ? 'Cancel' : 'Change' }}
-      </button>
-    </div>
+    <!-- Location bar (only shown after first load) -->
+    <template v-if="uvIndex !== null">
+      <div class="location-bar">
+        <span class="location-icon">📍</span>
+        <span class="location-name">{{ locationName }}</span>
+        <button
+          class="change-btn"
+          :disabled="onCooldown"
+          @click="showSearch = !showSearch"
+        >
+          {{ showSearch ? 'Cancel' : (onCooldown ? `${cooldownRemaining}s` : 'Change') }}
+        </button>
+      </div>
 
-    <!-- Manual city search -->
-    <form v-if="showSearch" class="search-form" @submit.prevent="searchByCity">
-      <input
-        v-model="cityInput"
-        type="text"
-        placeholder="Enter suburb or city (e.g. Melbourne)"
-        class="city-input"
-        autocomplete="off"
-      />
-      <button type="submit" class="search-btn" :disabled="!cityInput.trim()">Search</button>
-    </form>
+      <!-- Manual city search (change location) -->
+      <form v-if="showSearch" class="search-form" @submit.prevent="searchByCity">
+        <input
+          v-model="cityInput"
+          type="text"
+          placeholder="Enter suburb or city (e.g. Melbourne)"
+          class="city-input"
+          autocomplete="off"
+        />
+        <button
+          type="submit"
+          class="search-btn"
+          :disabled="!cityInput.trim() || onCooldown"
+        >
+          Search
+        </button>
+      </form>
+    </template>
 
     <!-- Loading state -->
     <div v-if="loading" class="state-card">
@@ -33,14 +44,42 @@
     <div v-else-if="error" class="state-card error-card">
       <span class="state-icon">⚠️</span>
       <p>{{ error }}</p>
-      <button class="retry-btn" @click="init">Try again</button>
+      <button class="retry-btn" :disabled="onCooldown" @click="init">
+        {{ onCooldown ? `Try again in ${cooldownRemaining}s` : 'Try again' }}
+      </button>
     </div>
 
-    <!-- No location yet -->
-    <div v-else-if="!uvIndex && uvIndex !== 0" class="state-card prompt-card">
-      <span class="state-icon">🌏</span>
-      <p>Allow location access or search for a city to see today's UV level.</p>
-      <button class="locate-btn" @click="getByGeolocation">Use my location</button>
+    <!-- No location yet — show both options immediately -->
+    <div v-else-if="uvIndex === null" class="prompt-panel">
+      <div class="prompt-heading">Check today's UV level</div>
+      <p class="prompt-desc">Use your device location or search by city.</p>
+
+      <button
+        class="locate-btn"
+        :disabled="onCooldown"
+        @click="getByGeolocation"
+      >
+        {{ onCooldown ? `Please wait ${cooldownRemaining}s` : 'Use my location' }}
+      </button>
+
+      <div class="prompt-divider"><span>or</span></div>
+
+      <form class="search-form-inline" @submit.prevent="searchByCity">
+        <input
+          v-model="cityInput"
+          type="text"
+          placeholder="Enter suburb or city (e.g. Melbourne)"
+          class="city-input"
+          autocomplete="off"
+        />
+        <button
+          type="submit"
+          class="search-btn"
+          :disabled="!cityInput.trim() || onCooldown"
+        >
+          {{ onCooldown ? `${cooldownRemaining}s` : 'Search' }}
+        </button>
+      </form>
     </div>
 
     <!-- UV data loaded -->
@@ -50,6 +89,34 @@
         <div class="uv-number">{{ uvIndex }}</div>
         <div class="uv-label">{{ uvInfo.label }}</div>
         <p class="uv-message">{{ uvInfo.message }}</p>
+
+        <!-- Raw data row -->
+        <div class="raw-data-row">
+          <div class="raw-item">
+            <span class="raw-icon">☀️</span>
+            <div>
+              <div class="raw-value">{{ uvRaw !== null ? uvRaw.toFixed(2) : '—' }}</div>
+              <div class="raw-key">UV Index (raw)</div>
+            </div>
+          </div>
+          <div class="raw-divider"></div>
+          <div class="raw-item">
+            <span class="raw-icon">🌡️</span>
+            <div>
+              <div class="raw-value">{{ temperature !== null ? temperature + '°C' : '—' }}</div>
+              <div class="raw-key">Temperature</div>
+            </div>
+          </div>
+          <div class="raw-divider"></div>
+          <div class="raw-item">
+            <span class="raw-icon">📍</span>
+            <div>
+              <div class="raw-value location-raw">{{ locationName || '—' }}</div>
+              <div class="raw-key">Location</div>
+            </div>
+          </div>
+        </div>
+
         <div class="uv-band" :style="{ background: uvInfo.color }"></div>
       </div>
 
@@ -137,20 +204,37 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, toRefs, onUnmounted } from 'vue'
 import axios from 'axios'
+import { uvStore } from '@/stores/uvStore.js'
 
 const API_KEY = import.meta.env.VITE_OWM_API_KEY
 
-// --- State ---
-const uvIndex      = ref(null)
-const locationName = ref('')
-const loading      = ref(false)
-const error        = ref('')
-const showSearch   = ref(false)
-const cityInput    = ref('')
-const lastUpdated  = ref('')
-const historyData  = ref(null)
+// --- Persistent state (survives navigation via shared store) ---
+const { uvIndex, uvRaw, temperature, locationName, lastUpdated, historyData } = toRefs(uvStore)
+
+// --- Local-only state ---
+const loading    = ref(false)
+const error      = ref('')
+const showSearch = ref(false)
+const cityInput  = ref('')
+
+// --- Cooldown (10 s between API calls) ---
+const COOLDOWN_SEC     = 10
+const cooldownRemaining = ref(0)
+const onCooldown       = computed(() => cooldownRemaining.value > 0)
+let _cooldownTimer     = null
+
+function startCooldown() {
+  cooldownRemaining.value = COOLDOWN_SEC
+  clearInterval(_cooldownTimer)
+  _cooldownTimer = setInterval(() => {
+    cooldownRemaining.value -= 1
+    if (cooldownRemaining.value <= 0) clearInterval(_cooldownTimer)
+  }, 1000)
+}
+
+onUnmounted(() => clearInterval(_cooldownTimer))
 
 // --- UV band definitions ---
 const uvBands = [
@@ -164,33 +248,40 @@ const uvBands = [
 // --- Clothing items per UV level ---
 const clothingByLevel = {
   Low: [
-    { icon: '🕶️', name: 'Sunglasses', reason: 'UV can still affect your eyes even on mild days.' },
-    { icon: '🧴', name: 'SPF 30+ Sunscreen', reason: 'Apply if you are spending more than 30 minutes outside.' },
+    { icon: '👕', name: 'Light T-shirt',   reason: 'Short sleeves are fine at low UV. Any light fabric is suitable.' },
+    { icon: '👖', name: 'Casual Pants or Shorts', reason: 'No special UV protection needed — wear what is comfortable.' },
+    { icon: '🧴', name: 'SPF 30 Sunscreen', reason: 'Apply if you plan to be outside for more than 30 minutes.' },
   ],
   Moderate: [
-    { icon: '🕶️', name: 'Sunglasses', reason: 'Protects eyes from moderate UV exposure.' },
-    { icon: '🧢', name: 'Hat', reason: 'A broad-brim hat shields your face, neck, and ears.' },
-    { icon: '🧴', name: 'SPF 30+ Sunscreen', reason: 'Apply 20 minutes before going out.' },
+    { icon: '🕶️', name: 'Sunglasses',       reason: 'Protects eyes from moderate UV exposure.' },
+    { icon: '🧢', name: 'Hat',               reason: 'A broad-brim hat shields your face, neck, and ears.' },
+    { icon: '👕', name: 'Light Long-sleeve Shirt', reason: 'A breathable long-sleeve adds UV coverage without overheating.' },
+    { icon: '👖', name: 'Light Pants or Trousers', reason: 'Covers legs from prolonged moderate UV exposure.' },
+    { icon: '🧴', name: 'SPF 30+ Sunscreen', reason: 'Apply 20 minutes before going out and reapply after 2 hours.' },
   ],
   High: [
-    { icon: '🕶️', name: 'Sunglasses', reason: 'High UV — eyes are vulnerable without protection.' },
-    { icon: '🧢', name: 'Wide-brim Hat', reason: 'Protects face, neck, and ears — areas frequently missed.' },
-    { icon: '🧴', name: 'SPF 50+ Sunscreen', reason: 'Apply generously and reapply every 2 hours.' },
-    { icon: '🌳', name: 'Seek Shade 10am–3pm', reason: 'UV is most intense at midday. Shade reduces exposure significantly.' },
+    { icon: '🕶️', name: 'Sunglasses',             reason: 'High UV — eyes are vulnerable without UV400 protection.' },
+    { icon: '🧢', name: 'Wide-brim Hat',           reason: 'Protects face, neck, and ears — areas frequently missed by sunscreen.' },
+    { icon: '👕', name: 'UV-protective Shirt (UPF 30+)', reason: 'A UPF-rated shirt blocks most UV — choose light-coloured, tightly woven fabric.' },
+    { icon: '👖', name: 'Long Pants or Trousers',  reason: 'Covers legs from high UV radiation during extended outdoor time.' },
+    { icon: '🧴', name: 'SPF 50+ Sunscreen',       reason: 'Apply generously to all exposed skin; reapply every 2 hours.' },
+    { icon: '🌳', name: 'Seek Shade 10am–3pm',     reason: 'UV peaks at midday. Move into shade for breaks throughout the day.' },
   ],
   'Very High': [
-    { icon: '🕶️', name: 'Sunglasses', reason: 'UV at this level causes rapid eye damage.' },
-    { icon: '🧢', name: 'Wide-brim Hat', reason: 'Essential at this level — no exceptions.' },
-    { icon: '🧴', name: 'SPF 50+ Sunscreen', reason: 'Apply every 90 minutes or after swimming or sweating.' },
-    { icon: '👕', name: 'Protective Clothing', reason: 'Long sleeves and UPF-rated fabrics block UV effectively.' },
-    { icon: '🌳', name: 'Avoid Peak Hours', reason: 'Stay indoors or in full shade between 10am and 3pm.' },
+    { icon: '🕶️', name: 'Sunglasses (UV400)',      reason: 'Very high UV causes rapid eye damage — wrap-around style preferred.' },
+    { icon: '🧢', name: 'Wide-brim Hat',           reason: 'Essential at this level. A wide brim protects neck and ears too.' },
+    { icon: '👔', name: 'Sun-proof Long-sleeve Coat or Shirt (UPF 50+)', reason: 'A UPF 50+ rated shirt or jacket blocks 98% of UV radiation.' },
+    { icon: '👖', name: 'Long Pants or Trousers',  reason: 'Full leg coverage is strongly recommended at very high UV.' },
+    { icon: '🧴', name: 'SPF 50+ Sunscreen',       reason: 'Apply every 90 minutes or immediately after swimming or sweating.' },
+    { icon: '🌳', name: 'Avoid 10am–3pm Outdoors', reason: 'Stay indoors or in full shade during peak UV hours.' },
   ],
   Extreme: [
-    { icon: '🚫', name: 'Avoid Outdoor Activity', reason: 'Extreme UV causes skin damage within minutes.' },
-    { icon: '🕶️', name: 'Sunglasses', reason: 'Wrap-around UV400 sunglasses are essential.' },
-    { icon: '🧢', name: 'Wide-brim Hat', reason: 'A full-coverage hat is non-negotiable at this level.' },
-    { icon: '🧴', name: 'SPF 50+ Sunscreen', reason: 'Apply heavily; reapply every 60–90 minutes.' },
-    { icon: '👕', name: 'Full-coverage Clothing', reason: 'Wear long sleeves, long pants, and UPF 50+ rated fabrics.' },
+    { icon: '🚫', name: 'Avoid Outdoor Activity',  reason: 'Extreme UV can cause skin damage within minutes. Stay indoors if possible.' },
+    { icon: '🕶️', name: 'Sunglasses (UV400)',      reason: 'Wrap-around UV400 sunglasses are non-negotiable at this level.' },
+    { icon: '🧢', name: 'Wide-brim Hat',           reason: 'A full-coverage wide-brim hat is essential if going outside.' },
+    { icon: '👔', name: 'Full Sun-proof Coat (UPF 50+)', reason: 'A UPF 50+ long-sleeve coat is the strongest clothing protection available.' },
+    { icon: '👖', name: 'Long Pants or Trousers (UPF rated)', reason: 'Cover all leg skin with UV-protective fabric — shorts are not suitable.' },
+    { icon: '🧴', name: 'SPF 50+ Sunscreen',       reason: 'Apply heavily to any exposed skin; reapply every 60 minutes.' },
   ],
 }
 
@@ -282,9 +373,9 @@ async function fetchHistory(cityName) {
 
 async function fetchUVByCoords(lat, lon) {
   const res = await axios.get('https://api.openweathermap.org/data/3.0/onecall', {
-    params: { lat, lon, exclude: 'minutely,hourly,daily,alerts', appid: API_KEY }
+    params: { lat, lon, exclude: 'minutely,hourly,daily,alerts', appid: API_KEY, units: 'metric' }
   })
-  return res.data.current.uvi
+  return { uvi: res.data.current.uvi, temp: res.data.current.temp }
 }
 
 async function reverseGeocode(lat, lon) {
@@ -305,21 +396,25 @@ async function forwardGeocode(city) {
 
 // --- Actions ---
 async function getByGeolocation() {
+  if (onCooldown.value) return
   if (!navigator.geolocation) {
     error.value = 'Geolocation is not supported by your browser. Please search for a city instead.'
     return
   }
   loading.value = true
   error.value = ''
+  startCooldown()
   navigator.geolocation.getCurrentPosition(
     async (pos) => {
       try {
         const { latitude, longitude } = pos.coords
-        const [uv, name] = await Promise.all([
+        const [weather, name] = await Promise.all([
           fetchUVByCoords(latitude, longitude),
           reverseGeocode(latitude, longitude)
         ])
-        uvIndex.value = Math.round(uv)
+        uvRaw.value       = weather.uvi
+        uvIndex.value     = Math.round(weather.uvi)
+        temperature.value = Math.round(weather.temp)
         locationName.value = name
         lastUpdated.value = new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })
         await fetchHistory(name)
@@ -338,14 +433,17 @@ async function getByGeolocation() {
 }
 
 async function searchByCity() {
-  if (!cityInput.value.trim()) return
+  if (!cityInput.value.trim() || onCooldown.value) return
   loading.value = true
   error.value = ''
   showSearch.value = false
+  startCooldown()
   try {
     const place = await forwardGeocode(cityInput.value.trim())
-    const uv = await fetchUVByCoords(place.lat, place.lon)
-    uvIndex.value = Math.round(uv)
+    const weather = await fetchUVByCoords(place.lat, place.lon)
+    uvRaw.value       = weather.uvi
+    uvIndex.value     = Math.round(weather.uvi)
+    temperature.value = Math.round(weather.temp)
     locationName.value = `${place.name}, ${place.state ?? place.country}`
     lastUpdated.value = new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })
     cityInput.value = ''
@@ -361,8 +459,6 @@ function init() {
   error.value = ''
   getByGeolocation()
 }
-
-onMounted(init)
 </script>
 
 <style scoped>
@@ -457,15 +553,62 @@ onMounted(init)
 .error-card p { color: #c0392b; }
 
 .retry-btn, .locate-btn {
-  padding: 0.6rem 1.4rem;
-  border-radius: 8px;
+  padding: 0.65rem 1.4rem;
+  border-radius: var(--radius);
   font-weight: 600;
-  background: var(--color-high);
+  background: var(--nav-bg);
   color: #fff;
   transition: opacity var(--transition);
 }
 
-.retry-btn:hover, .locate-btn:hover { opacity: 0.85; }
+.retry-btn:hover:not(:disabled),
+.locate-btn:hover:not(:disabled) { opacity: 0.82; }
+
+.retry-btn:disabled,
+.locate-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Prompt panel (initial state) */
+.prompt-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.prompt-heading {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.prompt-desc {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  margin-top: -0.35rem;
+}
+
+.prompt-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+.prompt-divider::before,
+.prompt-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.search-form-inline {
+  display: flex;
+  gap: 0.5rem;
+}
 
 /* Spinner */
 .spinner {
@@ -514,6 +657,53 @@ onMounted(init)
   margin-right: auto;
   opacity: 0.92;
   line-height: 1.55;
+}
+
+.raw-data-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+  background: rgba(0,0,0,0.18);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+}
+
+.raw-item {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.raw-icon { font-size: 1.1rem; flex-shrink: 0; }
+
+.raw-value {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.2;
+}
+
+.location-raw {
+  font-size: 0.78rem;
+  word-break: break-word;
+}
+
+.raw-key {
+  font-size: 0.65rem;
+  opacity: 0.75;
+  color: #fff;
+  margin-top: 1px;
+}
+
+.raw-divider {
+  width: 1px;
+  height: 36px;
+  background: rgba(255,255,255,0.25);
+  flex-shrink: 0;
 }
 
 .uv-band {

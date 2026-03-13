@@ -153,30 +153,59 @@
         </div>
       </section>
 
+      <!-- History trigger button -->
+      <div v-if="!historyData && !historyLoading" class="history-trigger">
+        <button class="history-btn" @click="fetchHistory">
+          Compare with 2024
+        </button>
+        <p class="history-btn-sub">See how today's UV compares to the same hour in 2024</p>
+      </div>
+
+      <!-- History loading -->
+      <div v-if="historyLoading" class="state-card">
+        <div class="spinner"></div>
+        <p>Loading 2024 data…</p>
+      </div>
+
+      <!-- History error -->
+      <div v-if="historyData && !historyData.available" class="state-card error-card">
+        <span class="state-icon">⚠️</span>
+        <p>{{ historyData.message || 'Could not load historical data.' }}</p>
+        <button class="retry-btn" @click="fetchHistory">Retry</button>
+      </div>
+
       <!-- Historical comparison -->
       <div v-if="historyData?.available" class="history-card">
+
+        <!-- Same-hour 2024 comparison -->
         <div class="history-header">
           <span class="history-icon">📅</span>
           <div>
-            <div class="history-title">Historical Average for {{ historyData.city }}</div>
-            <div class="history-sub">Typical UV in {{ currentMonthLabel }}</div>
+            <div class="history-title">Same Hour in 2024 — Melbourne</div>
+            <div class="history-sub" v-if="historyData.sameHour2024">
+              {{ historyData.sameHour2024.date }} at {{ historyData.sameHour2024.hourLabel }}
+            </div>
+            <div class="history-sub" v-else>
+              No data for {{ historyData.today?.hourLabel }} on this date in 2024
+            </div>
           </div>
-          <div class="history-avg" :style="{ color: avgUviColor }">
-            {{ historyData.thisMonthAvg }}
+          <div v-if="historyData.sameHour2024" class="history-avg"
+               :style="{ color: uviColor(historyData.sameHour2024.avg_uvi) }">
+            {{ historyData.sameHour2024.avg_uvi }}
           </div>
         </div>
-        <div class="history-comparison" v-if="historyData.thisMonthAvg !== null">
-          <span
-            class="comparison-badge"
-            :class="comparisonClass"
-          >{{ comparisonText }}</span>
+
+        <div v-if="historyData.sameHour2024" class="history-comparison">
+          <span class="comparison-badge" :class="comparisonClass">{{ comparisonText }}</span>
           <span class="comparison-detail">
-            Today's UV ({{ uvIndex }}) vs. {{ currentMonthLabel }} average ({{ historyData.thisMonthAvg }})
+            Now (UV {{ uvIndex }}) vs. {{ historyData.sameHour2024.date }} {{ historyData.sameHour2024.hourLabel }} (UV {{ historyData.sameHour2024.avg_uvi }})
           </span>
         </div>
+
+        <!-- Monthly bar chart (2024 average daily peak per month) -->
         <div class="history-bar-row">
           <div
-            v-for="h in historyData.history"
+            v-for="h in historyData.monthlyAvg"
             :key="h.month"
             class="history-bar-col"
             :class="{ 'current-month': h.month === historyData.currentMonth }"
@@ -190,9 +219,9 @@
             <span class="bar-label">{{ h.label }}</span>
           </div>
         </div>
+
         <p class="history-note">
-          Source: ARPANSA / Data.gov.au — monthly average UV index for 8 Australian capital cities
-          (CC BY 2.5 AU)
+          Source: ARPANSA / Data.gov.au — Melbourne UV data 2024 (CC BY 2.5 AU)
         </p>
       </div>
 
@@ -207,6 +236,7 @@
 import { ref, computed, toRefs, onUnmounted } from 'vue'
 import axios from 'axios'
 import { uvStore } from '@/stores/uvStore.js'
+import { supabase } from '@/lib/supabase.js'
 
 const API_KEY = import.meta.env.VITE_OWM_API_KEY
 
@@ -214,10 +244,11 @@ const API_KEY = import.meta.env.VITE_OWM_API_KEY
 const { uvIndex, uvRaw, temperature, locationName, lastUpdated, historyData } = toRefs(uvStore)
 
 // --- Local-only state ---
-const loading    = ref(false)
-const error      = ref('')
-const showSearch = ref(false)
-const cityInput  = ref('')
+const loading        = ref(false)
+const error          = ref('')
+const showSearch     = ref(false)
+const cityInput      = ref('')
+const historyLoading = ref(false)
 
 // --- Cooldown (10 s between API calls) ---
 const COOLDOWN_SEC     = 10
@@ -286,9 +317,6 @@ const clothingByLevel = {
 }
 
 // --- History helpers ---
-const MONTH_LABELS = ['January','February','March','April','May','June',
-                      'July','August','September','October','November','December']
-const currentMonthLabel = MONTH_LABELS[new Date().getMonth()]
 
 const MAX_UVI = 14
 
@@ -304,26 +332,22 @@ function uviColor(uvi) {
   return '#7b2d8b'
 }
 
-const avgUviColor = computed(() =>
-  historyData.value?.thisMonthAvg != null
-    ? uviColor(historyData.value.thisMonthAvg)
-    : '#999'
-)
-
 const comparisonClass = computed(() => {
-  if (!historyData.value?.thisMonthAvg || uvIndex.value == null) return ''
-  const diff = uvIndex.value - historyData.value.thisMonthAvg
+  const ref2024 = historyData.value?.sameHour2024?.avg_uvi
+  if (ref2024 == null || uvIndex.value == null) return ''
+  const diff = uvIndex.value - ref2024
   if (diff > 1)  return 'badge-above'
   if (diff < -1) return 'badge-below'
   return 'badge-typical'
 })
 
 const comparisonText = computed(() => {
-  if (!historyData.value?.thisMonthAvg || uvIndex.value == null) return ''
-  const diff = uvIndex.value - historyData.value.thisMonthAvg
-  if (diff > 1)  return '▲ Above average'
-  if (diff < -1) return '▼ Below average'
-  return '● Typical for this month'
+  const ref2024 = historyData.value?.sameHour2024?.avg_uvi
+  if (ref2024 == null || uvIndex.value == null) return ''
+  const diff = uvIndex.value - ref2024
+  if (diff > 1)  return '▲ Higher than 2024'
+  if (diff < -1) return '▼ Lower than 2024'
+  return '● Similar to 2024'
 })
 
 // --- Computed UV info ---
@@ -362,12 +386,65 @@ const uvInfo = computed(() => {
 })
 
 // --- API helpers ---
-async function fetchHistory(cityName) {
+const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun',
+                      'Jul','Aug','Sep','Oct','Nov','Dec']
+
+async function fetchHistory() {
+  historyLoading.value = true
+  historyData.value = null
   try {
-    const res = await axios.get(`/api/uv-history?city=${encodeURIComponent(cityName)}`)
-    historyData.value = res.data
-  } catch {
-    historyData.value = null
+    const now   = new Date()
+    const month = now.getMonth() + 1
+    const day   = now.getDate()
+    const hour  = now.getHours()
+    const hourLabel = `${String(hour).padStart(2,'0')}:00`
+
+    // Same hour, same calendar day in 2024
+    const { data: hourRow, error: hourErr } = await supabase
+      .from('uv_melbourne_2024')
+      .select('date, hour, avg_uvi')
+      .eq('month', month)
+      .eq('day', day)
+      .eq('hour', hour)
+      .maybeSingle()
+
+    if (hourErr) throw new Error(hourErr.message)
+
+    // Monthly averages for bar chart
+    const { data: allRows, error: allErr } = await supabase
+      .from('uv_melbourne_2024')
+      .select('month, avg_uvi')
+
+    if (allErr) throw new Error(allErr.message)
+
+    const monthMap = {}
+    for (const row of allRows) {
+      if (!monthMap[row.month]) monthMap[row.month] = { sum: 0, count: 0 }
+      monthMap[row.month].sum   += row.avg_uvi
+      monthMap[row.month].count += 1
+    }
+    const monthlyAvg = Object.entries(monthMap)
+      .sort(([a],[b]) => a - b)
+      .map(([m, v]) => ({
+        month:   parseInt(m),
+        label:   MONTH_LABELS[parseInt(m) - 1],
+        avg_uvi: parseFloat((v.sum / v.count).toFixed(1))
+      }))
+
+    historyData.value = {
+      available:    true,
+      city:         'Melbourne',
+      today:        { month, day, hour, hourLabel },
+      sameHour2024: hourRow
+        ? { date: hourRow.date, hour: hourRow.hour, hourLabel, avg_uvi: hourRow.avg_uvi }
+        : null,
+      monthlyAvg,
+      currentMonth: month
+    }
+  } catch (e) {
+    historyData.value = { available: false, message: `Failed to load history: ${e.message}` }
+  } finally {
+    historyLoading.value = false
   }
 }
 
@@ -403,6 +480,7 @@ async function getByGeolocation() {
   }
   loading.value = true
   error.value = ''
+  historyData.value = null
   startCooldown()
   navigator.geolocation.getCurrentPosition(
     async (pos) => {
@@ -417,7 +495,6 @@ async function getByGeolocation() {
         temperature.value = Math.round(weather.temp)
         locationName.value = name
         lastUpdated.value = new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })
-        await fetchHistory(name)
       } catch {
         error.value = 'Unable to retrieve UV data. Please check your API key or try again.'
       } finally {
@@ -437,6 +514,7 @@ async function searchByCity() {
   loading.value = true
   error.value = ''
   showSearch.value = false
+  historyData.value = null
   startCooldown()
   try {
     const place = await forwardGeocode(cityInput.value.trim())
@@ -447,7 +525,6 @@ async function searchByCity() {
     locationName.value = `${place.name}, ${place.state ?? place.country}`
     lastUpdated.value = new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })
     cityInput.value = ''
-    await fetchHistory(place.name)
   } catch (e) {
     error.value = e.message || 'Unable to retrieve UV data. Please try again.'
   } finally {
@@ -802,6 +879,34 @@ function init() {
   font-size: 0.8rem;
   color: var(--text-secondary);
   line-height: 1.4;
+}
+
+/* History trigger */
+.history-trigger {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.history-btn {
+  padding: 0.6rem 1.25rem;
+  background: var(--nav-bg);
+  color: var(--nav-text);
+  font-weight: 600;
+  font-size: 0.9rem;
+  border-radius: var(--radius);
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.history-btn:hover { opacity: 0.82; }
+
+.history-btn-sub {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  padding-left: 0.1rem;
 }
 
 /* Historical comparison card */

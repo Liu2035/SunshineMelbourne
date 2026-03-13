@@ -1,72 +1,73 @@
-import { Router } from 'express'
-import db from '../db.js'
+import { Router }   from 'express'
+import { supabase } from '../supabase.js'
 
 const router = Router()
 
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-const KNOWN_CITIES = ['sydney', 'melbourne', 'brisbane', 'perth',
-                      'adelaide', 'darwin', 'hobart', 'canberra']
-
 /**
- * Match a freeform location string against the 8 cities in our dataset.
- * e.g. "Melbourne, Victoria" → "melbourne"
- */
-function matchCity(raw) {
-  if (!raw) return null
-  const lower = raw.toLowerCase()
-  return KNOWN_CITIES.find(c => lower.includes(c)) ?? null
-}
-
-/**
- * GET /api/uv-history?city=Melbourne
+ * GET /api/uv-history
  *
- * Returns monthly average UV data for the matched city.
- * Response includes a comparison for the current month.
+ * Returns:
+ *  - same hour on the same calendar day in 2024 (e.g. today 12:23 → 2024 same day 12:00)
+ *  - monthly averages for the bar chart (avg of hourly readings per month)
  */
-router.get('/uv-history', (req, res) => {
-  const city = matchCity(req.query.city)
+router.get('/uv-history', async (req, res) => {
+  const now   = new Date()
+  const month = now.getMonth() + 1
+  const day   = now.getDate()
+  const hour  = now.getHours()   // current hour, floor (12:23 → 12)
 
-  if (!city) {
-    return res.json({
-      available: false,
-      message: 'No historical UV data for this location. Data covers 8 Australian capital cities only.'
-    })
+  // ── Same hour, same day in 2024 ──────────────────────────────
+  const { data: hourRow, error: hourErr } = await supabase
+    .from('uv_melbourne_2024')
+    .select('date, hour, avg_uvi')
+    .eq('month', month)
+    .eq('day', day)
+    .eq('hour', hour)
+    .maybeSingle()
+
+  if (hourErr) {
+    return res.status(500).json({ available: false, message: hourErr.message })
   }
 
-  const rows = db
-    .prepare(`
-      SELECT month, avg_uvi
-      FROM uv_monthly_avg
-      WHERE city = ? COLLATE NOCASE
-      ORDER BY month
-    `)
-    .all(city)
+  // ── Monthly averages for bar chart ───────────────────────────
+  const { data: allRows, error: allErr } = await supabase
+    .from('uv_melbourne_2024')
+    .select('month, avg_uvi')
 
-  if (!rows.length) {
-    return res.json({
-      available: false,
-      city,
-      message: 'Database not seeded yet. Run: npm run seed'
-    })
+  if (allErr) {
+    return res.status(500).json({ available: false, message: allErr.message })
   }
 
-  const currentMonth = new Date().getMonth() + 1
-  const history = rows.map(r => ({
-    month:   r.month,
-    label:   MONTH_LABELS[r.month - 1],
-    avg_uvi: r.avg_uvi
-  }))
+  const monthMap = {}
+  for (const row of allRows) {
+    if (!monthMap[row.month]) monthMap[row.month] = { sum: 0, count: 0 }
+    monthMap[row.month].sum   += row.avg_uvi
+    monthMap[row.month].count += 1
+  }
 
-  const thisMonthRecord = history.find(h => h.month === currentMonth)
+  const monthlyAvg = Object.entries(monthMap)
+    .sort(([a], [b]) => a - b)
+    .map(([m, v]) => ({
+      month:   parseInt(m),
+      label:   MONTH_LABELS[parseInt(m) - 1],
+      avg_uvi: parseFloat((v.sum / v.count).toFixed(1))
+    }))
+
+  // Format hour as "12:00"
+  const hourLabel = `${String(hour).padStart(2, '0')}:00`
 
   res.json({
-    available:     true,
-    city:          city.charAt(0).toUpperCase() + city.slice(1),
-    currentMonth,
-    thisMonthAvg:  thisMonthRecord?.avg_uvi ?? null,
-    history
+    available:    true,
+    city:         'Melbourne',
+    today:        { month, day, hour, hourLabel },
+    sameHour2024: hourRow
+      ? { date: hourRow.date, hour: hourRow.hour, hourLabel, avg_uvi: hourRow.avg_uvi }
+      : null,
+    monthlyAvg,
+    currentMonth: month
   })
 })
 

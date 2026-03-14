@@ -121,8 +121,11 @@ If you connected a Git repository instead of uploading manually, use these setti
 |---|---|
 | Build command | `npm run build` |
 | Build output directory | `dist` |
+| Deploy command | *(leave blank — Pages deploys automatically)* |
 | Root directory | *(leave blank)* |
-| Node.js version | `18` (set under **Environment variables** → `NODE_VERSION = 18`, or via `.node-version` file in repo root) |
+| Node.js version | `20` (set via `.node-version` file in repo root, **or** add environment variable `NODE_VERSION = 20` in dashboard) |
+
+> **Do NOT set a deploy command.** `npx wrangler deploy` is for Cloudflare Workers, not Pages. Setting it here causes the build to fail.
 
 **Environment variables for Git integration builds:**
 Set your `VITE_*` variables under **Settings → Environment variables** in the Cloudflare dashboard. Cloudflare will inject them during the build step so they get baked into the bundle correctly — you do not need them in your local `.env` for this workflow.
@@ -133,7 +136,8 @@ Set your `VITE_*` variables under **Settings → Environment variables** in the 
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `Error parsing file: vite.config.js` | `node:url` not supported on old Node | Confirmed fixed: changed to `url`; also add `.node-version` file with `18` |
+| `Error parsing file: vite.config.js` | `node:url` not supported on old Node | Fixed: changed to `url`; `.node-version` pinned to `20` |
+| `Wrangler requires at least Node.js v20` / `Failed: error occurred while running deploy command` | Deploy command was set to `npx wrangler deploy` | Clear the **Deploy command** field in Pages settings — Pages does not need one |
 | Blank page / 404 on refresh | Missing `_redirects` file | Complete Step 5 |
 | "Could not load UV data" | `VITE_OWM_API_KEY` not set at build time | Set env var in Cloudflare dashboard (Git flow) or local `.env` (manual flow), rebuild |
 | Supabase query fails | Wrong `VITE_SUPABASE_URL` or `VITE_SUPABASE_ANON_KEY` | Check env vars, rebuild |

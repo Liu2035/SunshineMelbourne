@@ -1,24 +1,30 @@
 <template>
-  <div class="gate-overlay">
-    <div class="gate-card">
-      <h1 class="gate-title">Healthy Sunshine Melbourne</h1>
-      <p class="gate-sub">Enter the access password to continue.</p>
+  <div class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center p-3"
+       style="background: var(--bg); z-index: 9999;">
+    <div style="width: 100%; max-width: 360px;">
+      <h1 class="h4 fw-bold mb-1" style="color: var(--text-primary)">Healthy Sunshine Melbourne</h1>
+      <p class="text-muted small mb-4">Enter the access password to continue.</p>
 
-      <form class="gate-form" @submit.prevent="submit">
-        <div class="input-wrap" :class="{ shake: shaking }">
+      <form @submit.prevent="submit">
+        <div class="mb-2" :class="{ shake: shaking }">
           <input
             v-model="password"
             type="password"
             placeholder="Password"
-            class="gate-input"
+            class="form-control form-control-lg"
             autocomplete="current-password"
             ref="inputRef"
           />
         </div>
 
-        <p v-if="errorMsg" class="gate-error">{{ errorMsg }}</p>
+        <p v-if="errorMsg" class="text-danger small mb-2">{{ errorMsg }}</p>
 
-        <button type="submit" class="gate-btn" :disabled="!password">
+        <button
+          type="submit"
+          class="btn w-100 fw-bold py-2"
+          :disabled="!password"
+          style="background: var(--nav-bg); color: var(--nav-text);"
+        >
           Unlock
         </button>
       </form>
@@ -55,48 +61,6 @@ function submit() {
 </script>
 
 <style scoped>
-.gate-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--bg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-  padding: 1rem;
-}
-
-.gate-card {
-  width: 100%;
-  max-width: 360px;
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-}
-
-.gate-title {
-  font-size: 1.4rem;
-  font-weight: 800;
-  color: var(--text-primary);
-}
-
-.gate-sub {
-  font-size: 0.88rem;
-  color: var(--text-secondary);
-  margin-top: -0.4rem;
-}
-
-.gate-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-  margin-top: 0.25rem;
-}
-
-.input-wrap.shake {
-  animation: shake 0.5s ease;
-}
-
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
   20%       { transform: translateX(-8px); }
@@ -105,38 +69,5 @@ function submit() {
   80%       { transform: translateX(6px); }
 }
 
-.gate-input {
-  width: 100%;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font-size: 1rem;
-  outline: none;
-  background: var(--surface);
-  transition: border-color 0.2s;
-}
-
-.gate-input:focus {
-  border-color: var(--nav-bg);
-}
-
-.gate-error {
-  font-size: 0.82rem;
-  color: #e63946;
-}
-
-.gate-btn {
-  padding: 0.75rem;
-  background: var(--nav-bg);
-  color: var(--nav-text);
-  font-weight: 700;
-  font-size: 0.95rem;
-  border-radius: var(--radius);
-  border: none;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.gate-btn:disabled        { opacity: 0.4; cursor: not-allowed; }
-.gate-btn:not(:disabled):hover { opacity: 0.85; }
+.shake { animation: shake 0.5s ease; }
 </style>

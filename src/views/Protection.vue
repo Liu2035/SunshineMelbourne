@@ -1,155 +1,151 @@
 <template>
-  <div class="protection">
+  <div class="d-flex flex-column gap-3">
 
     <!-- ── Dosage Calculator ─────────────────────────────────────── -->
-    <section class="card">
-      <h2 class="card-title">🧴 Sunscreen Dosage Calculator</h2>
-      <p class="card-sub">
-        Enter today's UV index and choose what you're covering — we'll tell you exactly how much to apply.
-      </p>
+    <section class="card shadow-sm">
+      <div class="card-body p-4 d-flex flex-column gap-4">
+        <div>
+          <h2 class="h5 fw-bold mb-1">🧴 Sunscreen Dosage Calculator</h2>
+          <p class="text-muted small mb-0">
+            Enter today's UV index and choose what you're covering — we'll tell you exactly how much to apply.
+          </p>
+        </div>
 
-      <!-- UV index input -->
-      <div class="field">
-        <label class="field-label">UV Index</label>
-        <div class="uv-input-row">
-          <input
-            v-model.number="uvInput"
-            type="range"
-            min="0"
-            max="13"
-            step="1"
-            class="uv-slider"
-            :style="{ accentColor: uvInfo.color }"
-          />
-          <div class="uv-badge" :style="{ background: uvInfo.color }">
-            {{ uvInput }}
+        <!-- UV index input -->
+        <div>
+          <label class="form-label fw-semibold text-uppercase text-muted" style="font-size: 0.78rem; letter-spacing: 0.05em">UV Index</label>
+          <div class="d-flex align-items-center gap-3">
+            <input
+              v-model.number="uvInput"
+              type="range"
+              min="0" max="13" step="1"
+              class="form-range flex-grow-1"
+              :style="{ accentColor: uvInfo.color }"
+            />
+            <div class="uv-badge" :style="{ background: uvInfo.color }">{{ uvInput }}</div>
+          </div>
+          <div class="fw-bold small mt-1" :style="{ color: uvInfo.color }">{{ uvInfo.label }}</div>
+        </div>
+
+        <!-- Coverage area selector -->
+        <div>
+          <label class="form-label fw-semibold text-uppercase text-muted" style="font-size: 0.78rem; letter-spacing: 0.05em">Coverage Area</label>
+          <div class="d-flex gap-2 flex-wrap">
+            <button
+              v-for="opt in coverageOptions"
+              :key="opt.id"
+              class="coverage-btn btn d-flex flex-column align-items-center gap-1 py-3 px-2"
+              :class="{ selected: selectedCoverage === opt.id }"
+              @click="selectedCoverage = opt.id"
+            >
+              <span style="font-size: 1.5rem">{{ opt.icon }}</span>
+              <span class="fw-semibold" style="font-size: 0.8rem; text-align: center">{{ opt.name }}</span>
+            </button>
           </div>
         </div>
-        <div class="uv-level-label" :style="{ color: uvInfo.color }">{{ uvInfo.label }}</div>
-      </div>
 
-      <!-- Coverage area selector -->
-      <div class="field">
-        <label class="field-label">Coverage Area</label>
-        <div class="coverage-options">
+        <!-- Result -->
+        <div class="result-box rounded-3 p-3" :style="{ borderColor: uvInfo.color }">
+          <div class="d-flex align-items-center gap-2 mb-3">
+            <div class="result-item flex-fill text-center">
+              <div class="fw-bold fs-5">{{ dosage.spf }}</div>
+              <div class="text-muted" style="font-size: 0.72rem">Recommended SPF</div>
+            </div>
+            <div class="result-divider"></div>
+            <div class="result-item flex-fill text-center">
+              <div class="fw-bold fs-5">{{ dosage.teaspoons }} tsp</div>
+              <div class="text-muted" style="font-size: 0.72rem">Amount to apply</div>
+            </div>
+            <div class="result-divider"></div>
+            <div class="result-item flex-fill text-center">
+              <div class="fw-bold fs-5">≈ {{ dosage.pumps }} pumps</div>
+              <div class="text-muted" style="font-size: 0.72rem">Pump equivalent</div>
+            </div>
+          </div>
+          <p class="text-muted small text-center mb-3">{{ dosage.note }}</p>
           <button
-            v-for="opt in coverageOptions"
-            :key="opt.id"
-            class="coverage-btn"
-            :class="{ selected: selectedCoverage === opt.id }"
-            @click="selectedCoverage = opt.id"
+            class="btn w-100 fw-semibold"
+            style="background: var(--color-high); color: #fff;"
+            @click="setReminderFromCalculator"
           >
-            <span class="coverage-icon">{{ opt.icon }}</span>
-            <span class="coverage-name">{{ opt.name }}</span>
+            ⏱ Set Reapplication Reminder ({{ dosage.intervalLabel }})
           </button>
         </div>
-      </div>
 
-      <!-- Result -->
-      <div class="result-box" :style="{ borderColor: uvInfo.color }">
-        <div class="result-row">
-          <div class="result-item">
-            <div class="result-value">{{ dosage.spf }}</div>
-            <div class="result-key">Recommended SPF</div>
-          </div>
-          <div class="result-divider"></div>
-          <div class="result-item">
-            <div class="result-value">{{ dosage.teaspoons }} tsp</div>
-            <div class="result-key">Amount to apply</div>
-          </div>
-          <div class="result-divider"></div>
-          <div class="result-item">
-            <div class="result-value">≈ {{ dosage.pumps }} pumps</div>
-            <div class="result-key">Pump equivalent</div>
-          </div>
-        </div>
-        <p class="result-note">{{ dosage.note }}</p>
-        <button class="set-reminder-btn" @click="setReminderFromCalculator">
-          ⏱ Set Reapplication Reminder ({{ dosage.intervalLabel }})
-        </button>
+        <p class="text-muted text-center border-top pt-3 mb-0" style="font-size: 0.75rem">
+          Based on the Cancer Council Australia teaspoon rule and the clinical standard of 2 mg/cm².
+        </p>
       </div>
-
-      <p class="dosage-standard">
-        Based on the Cancer Council Australia teaspoon rule and the clinical standard of 2 mg/cm².
-      </p>
     </section>
 
     <!-- ── Reapplication Reminder ────────────────────────────────── -->
-    <section class="card" ref="reminderSection">
-      <h2 class="card-title">⏱ Reapplication Reminder</h2>
-      <p class="card-sub">
-        Set a timer to remind yourself when it's time to reapply sunscreen.
-      </p>
+    <section class="card shadow-sm" ref="reminderSection">
+      <div class="card-body p-4 d-flex flex-column gap-4">
+        <div>
+          <h2 class="h5 fw-bold mb-1">⏱ Reapplication Reminder</h2>
+          <p class="text-muted small mb-0">Set a timer to remind yourself when it's time to reapply sunscreen.</p>
+        </div>
 
-      <!-- Interval selector -->
-      <div class="field">
-        <label class="field-label">Remind me every</label>
-        <div class="interval-options">
+        <!-- Interval selector -->
+        <div>
+          <label class="form-label fw-semibold text-uppercase text-muted" style="font-size: 0.78rem; letter-spacing: 0.05em">Remind me every</label>
+          <div class="d-flex gap-2">
+            <button
+              v-for="opt in intervalOptions"
+              :key="opt.seconds"
+              class="interval-btn btn flex-fill fw-semibold"
+              :class="{ selected: selectedInterval === opt.seconds }"
+              :disabled="timerRunning"
+              @click="selectedInterval = opt.seconds"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Countdown display -->
+        <div class="timer-wrap mx-auto">
+          <svg class="timer-ring" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="52" class="ring-bg" />
+            <circle
+              cx="60" cy="60" r="52"
+              class="ring-progress"
+              :stroke="timerFinished ? '#e63946' : '#f77f00'"
+              :stroke-dasharray="ringCircumference"
+              :stroke-dashoffset="ringOffset"
+            />
+          </svg>
+          <div class="timer-inner">
+            <div class="timer-display" :class="{ finished: timerFinished }">{{ formattedTime }}</div>
+            <div class="timer-label">{{ timerStatusLabel }}</div>
+          </div>
+        </div>
+
+        <!-- Alert when finished -->
+        <div v-if="timerFinished" class="alert alert-danger d-flex align-items-start gap-3 mb-0">
+          <span style="font-size: 1.5rem; flex-shrink: 0">☀️</span>
+          <div>
+            <div class="fw-bold" style="font-size: 0.95rem">Time to reapply sunscreen!</div>
+            <div class="small text-muted mt-1">Apply {{ currentDosageSummary }} to all exposed skin before going back out.</div>
+          </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="d-flex gap-3 justify-content-center">
+          <button v-if="!timerRunning && !timerFinished" class="btn btn-success fw-bold px-4" @click="startTimer">
+            ▶ Start
+          </button>
+          <button v-if="timerRunning" class="btn fw-bold px-4" style="background: #f9c74f; color: var(--text-primary);" @click="pauseTimer">
+            ⏸ Pause
+          </button>
           <button
-            v-for="opt in intervalOptions"
-            :key="opt.seconds"
-            class="interval-btn"
-            :class="{ selected: selectedInterval === opt.seconds }"
-            :disabled="timerRunning"
-            @click="selectedInterval = opt.seconds"
+            v-if="timerFinished || timerRunning || remaining < selectedInterval"
+            class="btn btn-outline-secondary fw-bold px-4"
+            @click="resetTimer"
           >
-            {{ opt.label }}
+            ↺ Reset
           </button>
         </div>
-      </div>
-
-      <!-- Countdown display -->
-      <div class="timer-wrap">
-        <svg class="timer-ring" viewBox="0 0 120 120">
-          <circle cx="60" cy="60" r="52" class="ring-bg" />
-          <circle
-            cx="60" cy="60" r="52"
-            class="ring-progress"
-            :stroke="timerFinished ? '#e63946' : '#f77f00'"
-            :stroke-dasharray="ringCircumference"
-            :stroke-dashoffset="ringOffset"
-          />
-        </svg>
-        <div class="timer-inner">
-          <div class="timer-display" :class="{ finished: timerFinished }">
-            {{ formattedTime }}
-          </div>
-          <div class="timer-label">{{ timerStatusLabel }}</div>
-        </div>
-      </div>
-
-      <!-- Alert when finished -->
-      <div v-if="timerFinished" class="timer-alert">
-        <span class="alert-icon">☀️</span>
-        <div>
-          <div class="alert-title">Time to reapply sunscreen!</div>
-          <div class="alert-body">Apply {{ currentDosageSummary }} to all exposed skin before going back out.</div>
-        </div>
-      </div>
-
-      <!-- Controls -->
-      <div class="timer-controls">
-        <button
-          v-if="!timerRunning && !timerFinished"
-          class="ctrl-btn start-btn"
-          @click="startTimer"
-        >
-          ▶ Start
-        </button>
-        <button
-          v-if="timerRunning"
-          class="ctrl-btn pause-btn"
-          @click="pauseTimer"
-        >
-          ⏸ Pause
-        </button>
-        <button
-          v-if="timerFinished || timerRunning || remaining < selectedInterval"
-          class="ctrl-btn reset-btn"
-          @click="resetTimer"
-        >
-          ↺ Reset
-        </button>
       </div>
     </section>
 
@@ -277,62 +273,7 @@ onUnmounted(() => clearInterval(_interval))
 </script>
 
 <style scoped>
-.protection {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-/* Card */
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-}
-
-.card-title {
-  font-size: 1.15rem;
-  font-weight: 700;
-}
-
-.card-sub {
-  font-size: 0.88rem;
-  color: var(--text-secondary);
-  margin-top: -0.75rem;
-}
-
-/* Field */
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.field-label {
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-/* UV slider */
-.uv-input-row {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.uv-slider {
-  flex: 1;
-  height: 6px;
-  cursor: pointer;
-}
-
+/* ── UV badge (circular) ─────────────────────────────────────────── */
 .uv-badge {
   width: 44px;
   height: 44px;
@@ -347,32 +288,14 @@ onUnmounted(() => clearInterval(_interval))
   transition: background 0.2s;
 }
 
-.uv-level-label {
-  font-size: 0.82rem;
-  font-weight: 700;
-  transition: color 0.2s;
-}
-
-/* Coverage options */
-.coverage-options {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
+/* ── Coverage & interval toggle buttons ─────────────────────────── */
 .coverage-btn {
   flex: 1;
-  min-width: 120px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.85rem 0.5rem;
+  min-width: 110px;
   border: 2px solid var(--border);
-  border-radius: var(--radius);
   background: var(--bg);
+  border-radius: var(--radius);
   transition: border-color 0.2s, background 0.2s;
-  cursor: pointer;
 }
 
 .coverage-btn.selected {
@@ -380,94 +303,11 @@ onUnmounted(() => clearInterval(_interval))
   background: #fff4ec;
 }
 
-.coverage-icon { font-size: 1.5rem; }
-.coverage-name { font-size: 0.8rem; font-weight: 600; text-align: center; }
-
-/* Result box */
-.result-box {
-  border: 2px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  transition: border-color 0.2s;
-}
-
-.result-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.result-item {
-  flex: 1;
-  text-align: center;
-}
-
-.result-value {
-  font-size: 1.2rem;
-  font-weight: 800;
-  line-height: 1.2;
-}
-
-.result-key {
-  font-size: 0.72rem;
-  color: var(--text-secondary);
-  margin-top: 0.2rem;
-}
-
-.result-divider {
-  width: 1px;
-  height: 40px;
-  background: var(--border);
-  flex-shrink: 0;
-}
-
-.result-note {
-  font-size: 0.82rem;
-  color: var(--text-secondary);
-  text-align: center;
-  line-height: 1.5;
-}
-
-.set-reminder-btn {
-  width: 100%;
-  padding: 0.75rem;
-  background: var(--color-high);
-  color: #fff;
-  font-weight: 600;
-  font-size: 0.9rem;
-  border-radius: 10px;
-  transition: opacity 0.2s;
-}
-
-.set-reminder-btn:hover { opacity: 0.85; }
-
-.dosage-standard {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  text-align: center;
-  border-top: 1px solid var(--border);
-  padding-top: 1rem;
-}
-
-/* Interval selector */
-.interval-options {
-  display: flex;
-  gap: 0.5rem;
-}
-
 .interval-btn {
-  flex: 1;
-  padding: 0.6rem;
   border: 2px solid var(--border);
-  border-radius: 10px;
   background: var(--bg);
-  font-weight: 600;
-  font-size: 0.88rem;
+  border-radius: 10px;
   transition: border-color 0.2s, background 0.2s;
-  cursor: pointer;
 }
 
 .interval-btn.selected {
@@ -480,12 +320,24 @@ onUnmounted(() => clearInterval(_interval))
   cursor: not-allowed;
 }
 
-/* Timer */
+/* ── Result box border ───────────────────────────────────────────── */
+.result-box {
+  border: 2px solid;
+  transition: border-color 0.2s;
+}
+
+.result-divider {
+  width: 1px;
+  height: 40px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+/* ── Timer ring ──────────────────────────────────────────────────── */
 .timer-wrap {
   position: relative;
   width: 160px;
   height: 160px;
-  margin: 0 auto;
 }
 
 .timer-ring {
@@ -541,15 +393,8 @@ onUnmounted(() => clearInterval(_interval))
   text-align: center;
 }
 
-/* Alert */
-.timer-alert {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.85rem;
-  padding: 1rem 1.15rem;
-  background: #fff5f5;
-  border: 1px solid #fbc4c4;
-  border-radius: var(--radius);
+/* ── Alert slide-in ─────────────────────────────────────────────── */
+.alert {
   animation: slide-in 0.3s ease;
 }
 
@@ -558,46 +403,9 @@ onUnmounted(() => clearInterval(_interval))
   to   { opacity: 1; transform: translateY(0); }
 }
 
-.alert-icon { font-size: 1.5rem; flex-shrink: 0; }
-
-.alert-title {
-  font-weight: 700;
-  font-size: 0.95rem;
-  color: #c0392b;
-}
-
-.alert-body {
-  font-size: 0.82rem;
-  color: var(--text-secondary);
-  margin-top: 0.2rem;
-  line-height: 1.5;
-}
-
-/* Timer controls */
-.timer-controls {
-  display: flex;
-  gap: 0.75rem;
-  justify-content: center;
-}
-
-.ctrl-btn {
-  padding: 0.65rem 1.75rem;
-  border-radius: 10px;
-  font-weight: 700;
-  font-size: 0.9rem;
-  transition: opacity 0.2s, transform 0.1s;
-}
-
-.ctrl-btn:hover  { opacity: 0.85; }
-.ctrl-btn:active { transform: scale(0.97); }
-
-.start-btn { background: #4caf50; color: #fff; }
-.pause-btn { background: #f9c74f; color: #1a1a2e; }
-.reset-btn { background: var(--border); color: var(--text-primary); }
-
+/* ── Responsive ──────────────────────────────────────────────────── */
 @media (max-width: 480px) {
-  .result-row    { flex-direction: column; gap: 0.75rem; }
   .result-divider { width: 100%; height: 1px; }
-  .coverage-btn  { min-width: 90px; }
+  .coverage-btn   { min-width: 90px; }
 }
 </style>

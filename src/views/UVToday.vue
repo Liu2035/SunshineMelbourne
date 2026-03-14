@@ -1,13 +1,13 @@
 <template>
-  <div class="uv-today">
+  <div class="d-flex flex-column gap-3">
 
     <!-- Location bar (only shown after first load) -->
     <template v-if="uvIndex !== null">
-      <div class="location-bar">
-        <span class="location-icon">📍</span>
-        <span class="location-name">{{ locationName }}</span>
+      <div class="d-flex align-items-center gap-2 bg-white border rounded-3 px-3 py-2">
+        <span>📍</span>
+        <span class="fw-semibold flex-grow-1" style="font-size: 0.95rem">{{ locationName }}</span>
         <button
-          class="change-btn"
+          class="btn btn-sm btn-outline-secondary"
           :disabled="onCooldown"
           @click="showSearch = !showSearch"
         >
@@ -16,17 +16,17 @@
       </div>
 
       <!-- Manual city search (change location) -->
-      <form v-if="showSearch" class="search-form" @submit.prevent="searchByCity">
+      <form v-if="showSearch" class="d-flex gap-2" @submit.prevent="searchByCity">
         <input
           v-model="cityInput"
           type="text"
           placeholder="Enter suburb or city (e.g. Melbourne)"
-          class="city-input"
+          class="form-control"
           autocomplete="off"
         />
         <button
           type="submit"
-          class="search-btn"
+          class="btn btn-warning fw-semibold"
           :disabled="!cityInput.trim() || onCooldown"
         >
           Search
@@ -35,51 +35,60 @@
     </template>
 
     <!-- Loading state -->
-    <div v-if="loading" class="state-card">
-      <div class="spinner"></div>
-      <p>Fetching UV data…</p>
+    <div v-if="loading" class="d-flex flex-column align-items-center justify-content-center gap-3 bg-white border rounded-3 p-5 text-muted">
+      <div class="spinner-border text-warning" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <p class="mb-0">Fetching UV data…</p>
     </div>
 
     <!-- Error state -->
-    <div v-else-if="error" class="state-card error-card">
-      <span class="state-icon">⚠️</span>
-      <p>{{ error }}</p>
-      <button class="retry-btn" :disabled="onCooldown" @click="init">
+    <div v-else-if="error" class="alert alert-danger d-flex flex-column align-items-center text-center gap-2 py-4">
+      <span style="font-size: 2rem">⚠️</span>
+      <p class="mb-1">{{ error }}</p>
+      <button class="btn btn-dark btn-sm" :disabled="onCooldown" @click="init">
         {{ onCooldown ? `Try again in ${cooldownRemaining}s` : 'Try again' }}
       </button>
     </div>
 
     <!-- No location yet — show both options immediately -->
-    <div v-else-if="uvIndex === null" class="prompt-panel">
-      <div class="prompt-heading">Check today's UV level</div>
-      <p class="prompt-desc">Use your device location or search by city.</p>
+    <div v-else-if="uvIndex === null" class="card shadow-sm">
+      <div class="card-body p-4 d-flex flex-column gap-3">
+        <div>
+          <div class="fw-bold fs-5">Check today's UV level</div>
+          <p class="text-muted small mb-0">Use your device location or search by city.</p>
+        </div>
 
-      <button
-        class="locate-btn"
-        :disabled="onCooldown"
-        @click="getByGeolocation"
-      >
-        {{ onCooldown ? `Please wait ${cooldownRemaining}s` : 'Use my location' }}
-      </button>
-
-      <div class="prompt-divider"><span>or</span></div>
-
-      <form class="search-form-inline" @submit.prevent="searchByCity">
-        <input
-          v-model="cityInput"
-          type="text"
-          placeholder="Enter suburb or city (e.g. Melbourne)"
-          class="city-input"
-          autocomplete="off"
-        />
         <button
-          type="submit"
-          class="search-btn"
-          :disabled="!cityInput.trim() || onCooldown"
+          class="btn fw-semibold py-2"
+          style="background: var(--nav-bg); color: var(--nav-text);"
+          :disabled="onCooldown"
+          @click="getByGeolocation"
         >
-          {{ onCooldown ? `${cooldownRemaining}s` : 'Search' }}
+          {{ onCooldown ? `Please wait ${cooldownRemaining}s` : 'Use my location' }}
         </button>
-      </form>
+
+        <div class="d-flex align-items-center gap-2 text-muted small">
+          <hr class="flex-grow-1 m-0" /><span>or</span><hr class="flex-grow-1 m-0" />
+        </div>
+
+        <form class="d-flex gap-2" @submit.prevent="searchByCity">
+          <input
+            v-model="cityInput"
+            type="text"
+            placeholder="Enter suburb or city (e.g. Melbourne)"
+            class="form-control"
+            autocomplete="off"
+          />
+          <button
+            type="submit"
+            class="btn btn-warning fw-semibold"
+            :disabled="!cityInput.trim() || onCooldown"
+          >
+            {{ onCooldown ? `${cooldownRemaining}s` : 'Search' }}
+          </button>
+        </form>
+      </div>
     </div>
 
     <!-- UV data loaded -->
@@ -135,98 +144,96 @@
       </div>
 
       <!-- Clothing recommendations -->
-      <section class="clothing-section">
-        <h2 class="section-title">What to Wear Today</h2>
-        <p class="section-sub">Recommended for UV Index {{ uvIndex }} ({{ uvInfo.label }})</p>
-        <div class="clothing-grid">
-          <div
-            v-for="item in uvInfo.clothing"
-            :key="item.name"
-            class="clothing-card"
-          >
-            <div class="clothing-icon">{{ item.icon }}</div>
-            <div class="clothing-info">
-              <div class="clothing-name">{{ item.name }}</div>
-              <div class="clothing-reason">{{ item.reason }}</div>
+      <section class="card shadow-sm">
+        <div class="card-body p-4">
+          <h2 class="h5 fw-bold mb-1">What to Wear Today</h2>
+          <p class="text-muted small mb-3">Recommended for UV Index {{ uvIndex }} ({{ uvInfo.label }})</p>
+          <div class="row g-2">
+            <div v-for="item in uvInfo.clothing" :key="item.name" class="col-sm-6">
+              <div class="d-flex align-items-start gap-3 border rounded-3 p-3 h-100" style="background: var(--bg)">
+                <div style="font-size: 1.75rem; line-height: 1; flex-shrink: 0">{{ item.icon }}</div>
+                <div>
+                  <div class="fw-semibold" style="font-size: 0.9rem">{{ item.name }}</div>
+                  <div class="text-muted" style="font-size: 0.8rem; line-height: 1.4">{{ item.reason }}</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       <!-- History trigger button -->
-      <div v-if="!historyData && !historyLoading" class="history-trigger">
-        <button class="history-btn" @click="fetchHistory">
-          Compare with 2024
+      <div v-if="!historyData && !historyLoading" class="d-flex flex-column gap-1">
+        <button
+          class="btn fw-semibold align-self-start px-4"
+          style="background: var(--nav-bg); color: var(--nav-text);"
+          :disabled="onHistoryCooldown"
+          @click="fetchHistory"
+        >
+          {{ onHistoryCooldown ? `Compare with 2024 (${historyCooldownRemaining}s)` : 'Compare with 2024' }}
         </button>
-        <p class="history-btn-sub">See how today's UV compares to the same hour in 2024</p>
+        <small class="text-muted">See how today's UV compares to the same hour in 2024</small>
       </div>
 
       <!-- History loading -->
-      <div v-if="historyLoading" class="state-card">
-        <div class="spinner"></div>
-        <p>Loading 2024 data…</p>
+      <div v-if="historyLoading" class="d-flex flex-column align-items-center justify-content-center gap-3 bg-white border rounded-3 p-4 text-muted">
+        <div class="spinner-border text-warning" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mb-0">Loading 2024 data…</p>
       </div>
 
       <!-- History error -->
-      <div v-if="historyData && !historyData.available" class="state-card error-card">
-        <span class="state-icon">⚠️</span>
-        <p>{{ historyData.message || 'Could not load historical data.' }}</p>
-        <button class="retry-btn" @click="fetchHistory">Retry</button>
+      <div v-if="historyData && !historyData.available" class="alert alert-danger d-flex align-items-start gap-2">
+        <span style="font-size: 1.25rem">⚠️</span>
+        <div>
+          <p class="mb-1">{{ historyData.message || 'Could not load historical data.' }}</p>
+          <button class="btn btn-sm btn-outline-danger" @click="fetchHistory">Retry</button>
+        </div>
       </div>
 
       <!-- Historical comparison -->
-      <div v-if="historyData?.available" class="history-card">
+      <div v-if="historyData?.available" class="card shadow-sm">
+        <div class="card-body p-4 d-flex flex-column gap-3">
 
-        <!-- Same-hour 2024 comparison -->
-        <div class="history-header">
-          <span class="history-icon">📅</span>
-          <div>
-            <div class="history-title">Same Hour in 2024 — Melbourne</div>
-            <div class="history-sub" v-if="historyData.sameHour2024">
-              {{ historyData.sameHour2024.date }} at {{ historyData.sameHour2024.hourLabel }}
+          <!-- Same-hour 2024 header -->
+          <div class="d-flex align-items-center gap-3">
+            <span style="font-size: 1.5rem; flex-shrink: 0">📅</span>
+            <div class="flex-grow-1">
+              <div class="fw-bold">Same Hour in 2024 — Melbourne</div>
+              <div class="text-muted small" v-if="historyData.sameHour2024">
+                {{ historyData.sameHour2024.date }} at {{ historyData.sameHour2024.hourLabel }}
+              </div>
+              <div class="text-muted small" v-else>
+                No data for {{ historyData.today?.hourLabel }} on this date in 2024
+              </div>
             </div>
-            <div class="history-sub" v-else>
-              No data for {{ historyData.today?.hourLabel }} on this date in 2024
+            <div
+              v-if="historyData.sameHour2024"
+              class="fw-bold"
+              style="font-size: 2rem; line-height: 1;"
+              :style="{ color: uviColor(historyData.sameHour2024.avg_uvi) }"
+            >
+              {{ historyData.sameHour2024.avg_uvi }}
             </div>
           </div>
-          <div v-if="historyData.sameHour2024" class="history-avg"
-               :style="{ color: uviColor(historyData.sameHour2024.avg_uvi) }">
-            {{ historyData.sameHour2024.avg_uvi }}
+
+          <!-- Comparison badge -->
+          <div v-if="historyData.sameHour2024" class="d-flex align-items-center flex-wrap gap-2">
+            <span class="badge rounded-pill" :class="comparisonClass">{{ comparisonText }}</span>
+            <span class="text-muted small">
+              Now (UV {{ uvIndex }}) vs. {{ historyData.sameHour2024.date }} {{ historyData.sameHour2024.hourLabel }} (UV {{ historyData.sameHour2024.avg_uvi }})
+            </span>
           </div>
-        </div>
 
-        <div v-if="historyData.sameHour2024" class="history-comparison">
-          <span class="comparison-badge" :class="comparisonClass">{{ comparisonText }}</span>
-          <span class="comparison-detail">
-            Now (UV {{ uvIndex }}) vs. {{ historyData.sameHour2024.date }} {{ historyData.sameHour2024.hourLabel }} (UV {{ historyData.sameHour2024.avg_uvi }})
-          </span>
+          <p class="text-muted border-top pt-3 mb-0" style="font-size: 0.72rem">
+            Source: ARPANSA / Data.gov.au — Melbourne UV data 2024 (CC BY 2.5 AU)
+          </p>
         </div>
-
-        <!-- Monthly bar chart (2024 average daily peak per month) -->
-        <div class="history-bar-row">
-          <div
-            v-for="h in historyData.monthlyAvg"
-            :key="h.month"
-            class="history-bar-col"
-            :class="{ 'current-month': h.month === historyData.currentMonth }"
-          >
-            <div class="bar-wrap">
-              <div
-                class="bar-fill"
-                :style="{ height: barHeight(h.avg_uvi) + '%', background: uviColor(h.avg_uvi) }"
-              ></div>
-            </div>
-            <span class="bar-label">{{ h.label }}</span>
-          </div>
-        </div>
-
-        <p class="history-note">
-          Source: ARPANSA / Data.gov.au — Melbourne UV data 2024 (CC BY 2.5 AU)
-        </p>
       </div>
 
       <!-- Last updated -->
-      <p class="last-updated">Last updated: {{ lastUpdated }}</p>
+      <p class="text-muted text-end mb-0" style="font-size: 0.78rem">Last updated: {{ lastUpdated }}</p>
     </template>
 
   </div>
@@ -250,11 +257,15 @@ const showSearch     = ref(false)
 const cityInput      = ref('')
 const historyLoading = ref(false)
 
-// --- Cooldown (10 s between API calls) ---
-const COOLDOWN_SEC     = 10
+// --- Cooldown (5 s between API calls) ---
+const COOLDOWN_SEC     = 5
 const cooldownRemaining = ref(0)
 const onCooldown       = computed(() => cooldownRemaining.value > 0)
 let _cooldownTimer     = null
+
+const historyCooldownRemaining = ref(0)
+const onHistoryCooldown        = computed(() => historyCooldownRemaining.value > 0)
+let _historyCooldownTimer      = null
 
 function startCooldown() {
   cooldownRemaining.value = COOLDOWN_SEC
@@ -265,7 +276,19 @@ function startCooldown() {
   }, 1000)
 }
 
-onUnmounted(() => clearInterval(_cooldownTimer))
+function startHistoryCooldown() {
+  historyCooldownRemaining.value = COOLDOWN_SEC
+  clearInterval(_historyCooldownTimer)
+  _historyCooldownTimer = setInterval(() => {
+    historyCooldownRemaining.value -= 1
+    if (historyCooldownRemaining.value <= 0) clearInterval(_historyCooldownTimer)
+  }, 1000)
+}
+
+onUnmounted(() => {
+  clearInterval(_cooldownTimer)
+  clearInterval(_historyCooldownTimer)
+})
 
 // --- UV band definitions ---
 const uvBands = [
@@ -317,13 +340,6 @@ const clothingByLevel = {
 }
 
 // --- History helpers ---
-
-const MAX_UVI = 14
-
-function barHeight(uvi) {
-  return Math.round((uvi / MAX_UVI) * 100)
-}
-
 function uviColor(uvi) {
   if (uvi <= 2)  return '#4caf50'
   if (uvi <= 5)  return '#f9c74f'
@@ -334,11 +350,11 @@ function uviColor(uvi) {
 
 const comparisonClass = computed(() => {
   const ref2024 = historyData.value?.sameHour2024?.avg_uvi
-  if (ref2024 == null || uvIndex.value == null) return ''
+  if (ref2024 == null || uvIndex.value == null) return 'text-bg-secondary'
   const diff = uvIndex.value - ref2024
-  if (diff > 1)  return 'badge-above'
-  if (diff < -1) return 'badge-below'
-  return 'badge-typical'
+  if (diff > 1)  return 'text-bg-danger'
+  if (diff < -1) return 'text-bg-success'
+  return 'text-bg-primary'
 })
 
 const comparisonText = computed(() => {
@@ -386,20 +402,18 @@ const uvInfo = computed(() => {
 })
 
 // --- API helpers ---
-const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun',
-                      'Jul','Aug','Sep','Oct','Nov','Dec']
-
 async function fetchHistory() {
+  if (onHistoryCooldown.value) return
   historyLoading.value = true
   historyData.value = null
+  startHistoryCooldown()
   try {
-    const now   = new Date()
-    const month = now.getMonth() + 1
-    const day   = now.getDate()
-    const hour  = now.getHours()
-    const hourLabel = `${String(hour).padStart(2,'0')}:00`
+    const now       = new Date()
+    const month     = now.getMonth() + 1
+    const day       = now.getDate()
+    const hour      = now.getHours()
+    const hourLabel = `${String(hour).padStart(2, '0')}:00`
 
-    // Same hour, same calendar day in 2024
     const { data: hourRow, error: hourErr } = await supabase
       .from('uv_melbourne_2024')
       .select('date, hour, avg_uvi')
@@ -410,36 +424,13 @@ async function fetchHistory() {
 
     if (hourErr) throw new Error(hourErr.message)
 
-    // Monthly averages for bar chart
-    const { data: allRows, error: allErr } = await supabase
-      .from('uv_melbourne_2024')
-      .select('month, avg_uvi')
-
-    if (allErr) throw new Error(allErr.message)
-
-    const monthMap = {}
-    for (const row of allRows) {
-      if (!monthMap[row.month]) monthMap[row.month] = { sum: 0, count: 0 }
-      monthMap[row.month].sum   += row.avg_uvi
-      monthMap[row.month].count += 1
-    }
-    const monthlyAvg = Object.entries(monthMap)
-      .sort(([a],[b]) => a - b)
-      .map(([m, v]) => ({
-        month:   parseInt(m),
-        label:   MONTH_LABELS[parseInt(m) - 1],
-        avg_uvi: parseFloat((v.sum / v.count).toFixed(1))
-      }))
-
     historyData.value = {
       available:    true,
       city:         'Melbourne',
       today:        { month, day, hour, hourLabel },
       sameHour2024: hourRow
         ? { date: hourRow.date, hour: hourRow.hour, hourLabel, avg_uvi: hourRow.avg_uvi }
-        : null,
-      monthlyAvg,
-      currentMonth: month
+        : null
     }
   } catch (e) {
     historyData.value = { available: false, message: `Failed to load history: ${e.message}` }
@@ -539,167 +530,7 @@ function init() {
 </script>
 
 <style scoped>
-.uv-today {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-/* Location bar */
-.location-bar {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 0.65rem 1rem;
-}
-
-.location-icon { font-size: 1rem; }
-
-.location-name {
-  flex: 1;
-  font-weight: 600;
-  font-size: 0.95rem;
-}
-
-.location-name.muted {
-  color: var(--text-secondary);
-  font-weight: 400;
-}
-
-.change-btn {
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 0.82rem;
-  padding: 0.25rem 0.6rem;
-  border-radius: 6px;
-  transition: background var(--transition);
-}
-
-.change-btn:hover { background: var(--border); }
-
-/* Search form */
-.search-form {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.city-input {
-  flex: 1;
-  padding: 0.65rem 0.9rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  outline: none;
-  transition: border-color var(--transition);
-}
-
-.city-input:focus { border-color: var(--color-high); }
-
-.search-btn {
-  padding: 0.65rem 1.2rem;
-  background: var(--color-high);
-  color: #fff;
-  font-weight: 600;
-  border-radius: var(--radius);
-  transition: opacity var(--transition);
-}
-
-.search-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.search-btn:not(:disabled):hover { opacity: 0.85; }
-
-/* State cards */
-.state-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  padding: 3rem 1.5rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  text-align: center;
-  color: var(--text-secondary);
-}
-
-.state-icon { font-size: 2.5rem; }
-
-.error-card { border-color: #fbc4c4; background: #fff5f5; }
-.error-card p { color: #c0392b; }
-
-.retry-btn, .locate-btn {
-  padding: 0.65rem 1.4rem;
-  border-radius: var(--radius);
-  font-weight: 600;
-  background: var(--nav-bg);
-  color: #fff;
-  transition: opacity var(--transition);
-}
-
-.retry-btn:hover:not(:disabled),
-.locate-btn:hover:not(:disabled) { opacity: 0.82; }
-
-.retry-btn:disabled,
-.locate-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-
-/* Prompt panel (initial state) */
-.prompt-panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 2rem 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-}
-
-.prompt-heading {
-  font-size: 1.1rem;
-  font-weight: 700;
-}
-
-.prompt-desc {
-  font-size: 0.88rem;
-  color: var(--text-secondary);
-  margin-top: -0.35rem;
-}
-
-.prompt-divider {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  color: var(--text-secondary);
-  font-size: 0.82rem;
-}
-
-.prompt-divider::before,
-.prompt-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border);
-}
-
-.search-form-inline {
-  display: flex;
-  gap: 0.5rem;
-}
-
-/* Spinner */
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid var(--border);
-  border-top-color: var(--color-high);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* UV Hero */
+/* ── UV Hero ─────────────────────────────────────────────────────── */
 .uv-hero {
   border-radius: var(--radius);
   padding: 2.5rem 2rem;
@@ -742,7 +573,7 @@ function init() {
   justify-content: center;
   gap: 0.5rem;
   margin-top: 1.25rem;
-  background: rgba(0,0,0,0.18);
+  background: rgba(0, 0, 0, 0.18);
   border-radius: 10px;
   padding: 0.75rem 1rem;
 }
@@ -755,44 +586,26 @@ function init() {
   justify-content: center;
 }
 
-.raw-icon { font-size: 1.1rem; flex-shrink: 0; }
-
-.raw-value {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: #fff;
-  line-height: 1.2;
-}
-
-.location-raw {
-  font-size: 0.78rem;
-  word-break: break-word;
-}
-
-.raw-key {
-  font-size: 0.65rem;
-  opacity: 0.75;
-  color: #fff;
-  margin-top: 1px;
-}
+.raw-icon   { font-size: 1.1rem; flex-shrink: 0; }
+.raw-value  { font-size: 0.95rem; font-weight: 700; color: #fff; line-height: 1.2; }
+.location-raw { font-size: 0.78rem; word-break: break-word; }
+.raw-key    { font-size: 0.65rem; opacity: 0.75; color: #fff; margin-top: 1px; }
 
 .raw-divider {
   width: 1px;
   height: 36px;
-  background: rgba(255,255,255,0.25);
+  background: rgba(255, 255, 255, 0.25);
   flex-shrink: 0;
 }
 
 .uv-band {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  bottom: 0; left: 0; right: 0;
   height: 5px;
   opacity: 0.6;
 }
 
-/* UV Scale */
+/* ── UV Scale ────────────────────────────────────────────────────── */
 .uv-scale {
   display: flex;
   border-radius: var(--radius);
@@ -810,223 +623,14 @@ function init() {
   transition: opacity var(--transition);
 }
 
-.scale-segment.active {
-  opacity: 1;
-}
+.scale-segment.active { opacity: 1; }
+.scale-range  { font-size: 0.7rem; font-weight: 700; color: #fff; }
+.scale-label  { font-size: 0.62rem; font-weight: 500; color: rgba(255,255,255,0.85); margin-top: 2px; }
 
-.scale-range {
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: #fff;
-}
-
-.scale-label {
-  font-size: 0.62rem;
-  font-weight: 500;
-  color: rgba(255,255,255,0.85);
-  margin-top: 2px;
-}
-
-/* Clothing section */
-.clothing-section {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.5rem;
-}
-
-.section-title {
-  font-size: 1.15rem;
-  font-weight: 700;
-  margin-bottom: 0.25rem;
-}
-
-.section-sub {
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  margin-bottom: 1.25rem;
-}
-
-.clothing-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 0.75rem;
-}
-
-.clothing-card {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 0.85rem;
-}
-
-.clothing-icon {
-  font-size: 1.75rem;
-  flex-shrink: 0;
-  line-height: 1;
-}
-
-.clothing-name {
-  font-weight: 600;
-  font-size: 0.9rem;
-  margin-bottom: 0.2rem;
-}
-
-.clothing-reason {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  line-height: 1.4;
-}
-
-/* History trigger */
-.history-trigger {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.35rem;
-}
-
-.history-btn {
-  padding: 0.6rem 1.25rem;
-  background: var(--nav-bg);
-  color: var(--nav-text);
-  font-weight: 600;
-  font-size: 0.9rem;
-  border-radius: var(--radius);
-  border: none;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.history-btn:hover { opacity: 0.82; }
-
-.history-btn-sub {
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-  padding-left: 0.1rem;
-}
-
-/* Historical comparison card */
-.history-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.history-header {
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
-}
-
-.history-icon { font-size: 1.5rem; flex-shrink: 0; }
-
-.history-title {
-  font-weight: 700;
-  font-size: 1rem;
-}
-
-.history-sub {
-  font-size: 0.82rem;
-  color: var(--text-secondary);
-}
-
-.history-avg {
-  margin-left: auto;
-  font-size: 2rem;
-  font-weight: 800;
-  line-height: 1;
-}
-
-.history-comparison {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  flex-wrap: wrap;
-}
-
-.comparison-badge {
-  font-size: 0.78rem;
-  font-weight: 700;
-  padding: 0.25rem 0.65rem;
-  border-radius: 20px;
-}
-
-.badge-above   { background: #fde8e8; color: #c0392b; }
-.badge-below   { background: #e8f5e9; color: #2e7d32; }
-.badge-typical { background: #e3f2fd; color: #1565c0; }
-
-.comparison-detail {
-  font-size: 0.82rem;
-  color: var(--text-secondary);
-}
-
-/* Monthly bar chart */
-.history-bar-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
-  height: 80px;
-}
-
-.history-bar-col {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  height: 100%;
-}
-
-.history-bar-col.current-month .bar-label {
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.bar-wrap {
-  flex: 1;
-  width: 100%;
-  display: flex;
-  align-items: flex-end;
-}
-
-.bar-fill {
-  width: 100%;
-  border-radius: 3px 3px 0 0;
-  min-height: 3px;
-  transition: height 0.3s ease;
-}
-
-.bar-label {
-  font-size: 0.6rem;
-  color: var(--text-secondary);
-}
-
-.history-note {
-  font-size: 0.72rem;
-  color: var(--text-secondary);
-  border-top: 1px solid var(--border);
-  padding-top: 0.75rem;
-}
-
-/* Last updated */
-.last-updated {
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-  text-align: right;
-}
-
+/* ── Responsive ──────────────────────────────────────────────────── */
 @media (max-width: 480px) {
-  .uv-number { font-size: 4rem; }
-  .uv-label  { font-size: 1.2rem; }
-  .clothing-grid { grid-template-columns: 1fr; }
+  .uv-number   { font-size: 4rem; }
+  .uv-label    { font-size: 1.2rem; }
   .scale-label { display: none; }
 }
 </style>

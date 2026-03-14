@@ -5,6 +5,7 @@
 
 guidelines/
 note
+/doc
 # User-specific files
 *.rsuser
 *.suo

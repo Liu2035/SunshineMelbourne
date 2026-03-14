@@ -113,12 +113,29 @@ For every future update:
 
 ---
 
+## Cloudflare Pages Build Settings (Git integration)
+
+If you connected a Git repository instead of uploading manually, use these settings in the Cloudflare Pages dashboard under **Settings → Build & deployments**:
+
+| Setting | Value |
+|---|---|
+| Build command | `npm run build` |
+| Build output directory | `dist` |
+| Root directory | *(leave blank)* |
+| Node.js version | `18` (set under **Environment variables** → `NODE_VERSION = 18`, or via `.node-version` file in repo root) |
+
+**Environment variables for Git integration builds:**
+Set your `VITE_*` variables under **Settings → Environment variables** in the Cloudflare dashboard. Cloudflare will inject them during the build step so they get baked into the bundle correctly — you do not need them in your local `.env` for this workflow.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
 |---|---|---|
+| `Error parsing file: vite.config.js` | `node:url` not supported on old Node | Confirmed fixed: changed to `url`; also add `.node-version` file with `18` |
 | Blank page / 404 on refresh | Missing `_redirects` file | Complete Step 5 |
-| "Could not load UV data" | `VITE_OWM_API_KEY` not set at build time | Rebuild after setting `.env` |
-| Supabase query fails | Wrong `VITE_SUPABASE_URL` or `VITE_SUPABASE_ANON_KEY` | Check `.env`, rebuild |
-| Password gate fails | `VITE_SITE_PASSWORD` not set | Falls back to `sunshine2026`; rebuild with correct value |
+| "Could not load UV data" | `VITE_OWM_API_KEY` not set at build time | Set env var in Cloudflare dashboard (Git flow) or local `.env` (manual flow), rebuild |
+| Supabase query fails | Wrong `VITE_SUPABASE_URL` or `VITE_SUPABASE_ANON_KEY` | Check env vars, rebuild |
+| Password gate fails | `VITE_SITE_PASSWORD` not set | Falls back to `sunshine2026`; set env var and rebuild |
 | Old version still showing | Browser cache | Hard refresh with Ctrl+Shift+R |

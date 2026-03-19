@@ -93,40 +93,68 @@
 
     <!-- UV data loaded -->
     <template v-else>
-      <!-- UV Hero card -->
-      <div class="uv-hero" :style="{ background: uvInfo.gradient }">
-        <div class="uv-number">{{ uvIndex }}</div>
-        <div class="uv-label">{{ uvInfo.label }}</div>
-        <p class="uv-message">{{ uvInfo.message }}</p>
 
-        <!-- Raw data row -->
-        <div class="raw-data-row">
-          <div class="raw-item">
-            <span class="raw-icon">☀️</span>
-            <div>
-              <div class="raw-value">{{ uvRaw !== null ? uvRaw.toFixed(2) : '—' }}</div>
-              <div class="raw-key">UV Index (raw)</div>
+      <!-- UV hero + clothing side by side -->
+      <div class="row g-3 align-items-start">
+
+        <!-- LEFT: UV hero card -->
+        <div class="col-lg-5">
+          <div class="uv-hero h-100" :style="{ background: uvInfo.gradient }">
+            <div class="uv-number">{{ uvIndex }}</div>
+            <div class="uv-label">{{ uvInfo.label }}</div>
+            <p class="uv-message">{{ uvInfo.message }}</p>
+
+            <!-- Raw data row -->
+            <div class="raw-data-row">
+              <div class="raw-item">
+                <span class="raw-icon">☀️</span>
+                <div>
+                  <div class="raw-value">{{ uvRaw !== null ? uvRaw.toFixed(2) : '—' }}</div>
+                  <div class="raw-key">UV Index (raw)</div>
+                </div>
+              </div>
+              <div class="raw-divider"></div>
+              <div class="raw-item">
+                <span class="raw-icon">🌡️</span>
+                <div>
+                  <div class="raw-value">{{ temperature !== null ? temperature + '°C' : '—' }}</div>
+                  <div class="raw-key">Temperature</div>
+                </div>
+              </div>
+              <div class="raw-divider"></div>
+              <div class="raw-item">
+                <span class="raw-icon">📍</span>
+                <div>
+                  <div class="raw-value location-raw">{{ locationName || '—' }}</div>
+                  <div class="raw-key">Location</div>
+                </div>
+              </div>
             </div>
-          </div>
-          <div class="raw-divider"></div>
-          <div class="raw-item">
-            <span class="raw-icon">🌡️</span>
-            <div>
-              <div class="raw-value">{{ temperature !== null ? temperature + '°C' : '—' }}</div>
-              <div class="raw-key">Temperature</div>
-            </div>
-          </div>
-          <div class="raw-divider"></div>
-          <div class="raw-item">
-            <span class="raw-icon">📍</span>
-            <div>
-              <div class="raw-value location-raw">{{ locationName || '—' }}</div>
-              <div class="raw-key">Location</div>
-            </div>
+
+            <div class="uv-band" :style="{ background: uvInfo.color }"></div>
           </div>
         </div>
 
-        <div class="uv-band" :style="{ background: uvInfo.color }"></div>
+        <!-- RIGHT: clothing recommendations -->
+        <div class="col-lg-7">
+          <div class="card shadow-sm h-100">
+            <div class="card-body p-4">
+              <h2 class="h5 fw-bold mb-1">What to Wear Today</h2>
+              <p class="text-muted small mb-3">Recommended for UV Index {{ uvIndex }} ({{ uvInfo.label }})</p>
+              <div class="row g-2">
+                <div v-for="item in uvInfo.clothing" :key="item.name" class="col-12 col-sm-6">
+                  <div class="d-flex align-items-start gap-3 border rounded-3 p-3 h-100" style="background: var(--bg)">
+                    <div style="font-size: 1.5rem; line-height: 1; flex-shrink: 0">{{ item.icon }}</div>
+                    <div>
+                      <div class="fw-semibold" style="font-size: 0.88rem">{{ item.name }}</div>
+                      <div class="text-muted" style="font-size: 0.78rem; line-height: 1.4">{{ item.reason }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- UV scale legend -->
@@ -142,25 +170,6 @@
           <span class="scale-label">{{ band.label }}</span>
         </div>
       </div>
-
-      <!-- Clothing recommendations -->
-      <section class="card shadow-sm">
-        <div class="card-body p-4">
-          <h2 class="h5 fw-bold mb-1">What to Wear Today</h2>
-          <p class="text-muted small mb-3">Recommended for UV Index {{ uvIndex }} ({{ uvInfo.label }})</p>
-          <div class="row g-2">
-            <div v-for="item in uvInfo.clothing" :key="item.name" class="col-sm-6">
-              <div class="d-flex align-items-start gap-3 border rounded-3 p-3 h-100" style="background: var(--bg)">
-                <div style="font-size: 1.75rem; line-height: 1; flex-shrink: 0">{{ item.icon }}</div>
-                <div>
-                  <div class="fw-semibold" style="font-size: 0.9rem">{{ item.name }}</div>
-                  <div class="text-muted" style="font-size: 0.8rem; line-height: 1.4">{{ item.reason }}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
       <!-- History trigger button -->
       <div v-if="!historyData && !historyLoading" class="d-flex flex-column gap-1">
@@ -232,8 +241,13 @@
         </div>
       </div>
 
-      <!-- Last updated -->
-      <p class="text-muted text-end mb-0" style="font-size: 0.78rem">Last updated: {{ lastUpdated }}</p>
+      <!-- Jump to Protection -->
+      <div class="d-flex align-items-center justify-content-between pt-1">
+        <p class="text-muted mb-0" style="font-size: 0.78rem">Last updated: {{ lastUpdated }}</p>
+        <RouterLink to="/protection" class="btn btn-sm fw-semibold" style="background: var(--color-high); color: #fff;">
+          Sunscreen &amp; Timer →
+        </RouterLink>
+      </div>
     </template>
 
   </div>

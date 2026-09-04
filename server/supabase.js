@@ -1,11 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
+import 'dotenv/config'
 
 const url = process.env.VITE_SUPABASE_URL
 const key = process.env.VITE_SUPABASE_ANON_KEY
 
-if (!url || !key) {
-  console.error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in .env')
-  process.exit(1)
+export const supabase = (url && key) ? createClient(url, key) : null
+
+if (!supabase) {
+  console.log('ℹ️ No Supabase credentials configured in .env — using local SQLite database.')
 }
 
-export const supabase = createClient(url, key)

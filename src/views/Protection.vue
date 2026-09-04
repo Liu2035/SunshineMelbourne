@@ -1,116 +1,144 @@
 <template>
   <div class="d-flex flex-column gap-3">
 
-    <!-- ── Dosage Calculator ─────────────────────────────────────── -->
-    <section class="card shadow-sm">
+    <!-- ── Dosage Calculator (US3.1) ───────────────────────────────── -->
+    <section class="card shadow-sm border-0">
       <div class="card-body p-4 d-flex flex-column gap-4">
         <div>
-          <h2 class="h5 fw-bold mb-1">🧴 Sunscreen Dosage Calculator</h2>
-          <p class="text-muted small mb-0">
-            Enter today's UV index and choose what you're covering — we'll tell you exactly how much to apply.
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <h2 class="h5 fw-bold mb-0">🧴 Sunscreen Dosage Calculator</h2>
+            <span v-if="uvStore.locationName" class="badge bg-light text-dark border small">
+              📍 Location UV: {{ uvStore.uvIndex ?? '—' }} ({{ uvStore.locationName }})
+            </span>
+          </div>
+          <p class="text-muted small mb-0 mt-1">
+            Calculate accurate clinical sunscreen amounts (teaspoons &amp; bottle pumps) based on the Cancer Council Australia teaspoon rule.
           </p>
         </div>
 
-        <!-- UV index input -->
+        <!-- UV index input slider -->
         <div>
-          <label class="form-label fw-semibold text-uppercase text-muted" style="font-size: 0.78rem; letter-spacing: 0.05em">UV Index</label>
+          <div class="d-flex align-items-center justify-content-between mb-1">
+            <label class="form-label fw-bold text-uppercase text-muted small mb-0" style="letter-spacing: 0.5px">
+              UV Index
+            </label>
+            <span class="badge rounded-pill fw-bold px-2 py-1" :style="{ background: uvInfo.color, color: '#fff' }">
+              {{ uvInfo.label }}
+            </span>
+          </div>
+
           <div class="d-flex align-items-center gap-3">
             <input
               v-model.number="uvInput"
               type="range"
-              min="0" max="13" step="1"
+              min="0"
+              max="13"
+              step="1"
               class="form-range flex-grow-1"
               :style="{ accentColor: uvInfo.color }"
             />
-            <div class="uv-badge" :style="{ background: uvInfo.color }">{{ uvInput }}</div>
+            <div class="uv-badge shadow-sm" :style="{ background: uvInfo.color }">{{ uvInput }}</div>
           </div>
-          <div class="fw-bold small mt-1" :style="{ color: uvInfo.color }">{{ uvInfo.label }}</div>
+          <div class="text-muted small mt-1">
+            Drag the slider to adjust UV level (0 = Night/Low to 13 = Extreme midday Australian summer).
+          </div>
         </div>
 
         <!-- Coverage area selector -->
         <div>
-          <label class="form-label fw-semibold text-uppercase text-muted" style="font-size: 0.78rem; letter-spacing: 0.05em">Coverage Area</label>
+          <label class="form-label fw-bold text-uppercase text-muted small mb-2" style="letter-spacing: 0.5px">
+            Select Exposed Coverage Area
+          </label>
           <div class="d-flex gap-2 flex-wrap">
             <button
               v-for="opt in coverageOptions"
               :key="opt.id"
-              class="coverage-btn btn d-flex flex-column align-items-center gap-1 py-3 px-2"
+              class="coverage-btn btn d-flex flex-column align-items-center gap-1 py-3 px-2 shadow-sm"
               :class="{ selected: selectedCoverage === opt.id }"
               @click="selectedCoverage = opt.id"
             >
-              <span style="font-size: 1.5rem">{{ opt.icon }}</span>
-              <span class="fw-semibold" style="font-size: 0.8rem; text-align: center">{{ opt.name }}</span>
+              <span style="font-size: 1.6rem">{{ opt.icon }}</span>
+              <span class="fw-bold" style="font-size: 0.82rem; text-align: center">{{ opt.name }}</span>
+              <span class="text-muted" style="font-size: 0.7rem">{{ opt.bodyPartHint }}</span>
             </button>
           </div>
         </div>
 
-        <!-- Result -->
-        <div class="result-box rounded-3 p-3" :style="{ borderColor: uvInfo.color }">
+        <!-- Result Box (teaspoons, pumps, SPF) -->
+        <div class="result-box rounded-3 p-3.5" :style="{ borderColor: uvInfo.color, background: '#faf9f6' }">
           <div class="d-flex align-items-center gap-2 mb-3">
             <div class="result-item flex-fill text-center">
-              <div class="fw-bold fs-5">{{ dosage.spf }}</div>
-              <div class="text-muted" style="font-size: 0.72rem">Recommended SPF</div>
+              <div class="fw-bold fs-4" style="color: var(--text-primary)">{{ dosage.spf }}</div>
+              <div class="text-muted" style="font-size: 0.72rem; text-transform: uppercase">Recommended SPF</div>
             </div>
             <div class="result-divider"></div>
             <div class="result-item flex-fill text-center">
-              <div class="fw-bold fs-5">{{ dosage.teaspoons }} tsp</div>
-              <div class="text-muted" style="font-size: 0.72rem">Amount to apply</div>
+              <div class="fw-bold fs-4" :style="{ color: uvInfo.color }">{{ dosage.teaspoons }} tsp</div>
+              <div class="text-muted" style="font-size: 0.72rem; text-transform: uppercase">Amount to apply</div>
             </div>
             <div class="result-divider"></div>
             <div class="result-item flex-fill text-center">
-              <div class="fw-bold fs-5">≈ {{ dosage.pumps }} pumps</div>
-              <div class="text-muted" style="font-size: 0.72rem">Pump equivalent</div>
+              <div class="fw-bold fs-4" style="color: var(--text-primary)">≈ {{ dosage.pumps }} pumps</div>
+              <div class="text-muted" style="font-size: 0.72rem; text-transform: uppercase">Pump equivalent</div>
             </div>
           </div>
-          <p class="text-muted small text-center mb-3">{{ dosage.note }}</p>
+
+          <p class="text-muted small text-center mb-3 fw-semibold">
+            {{ dosage.note }}
+          </p>
+
           <button
-            class="btn w-100 fw-semibold"
-            style="background: var(--color-high); color: #fff;"
+            class="btn w-100 fw-bold py-2.5 shadow-sm text-white"
+            style="background: var(--color-high);"
             @click="setReminderFromCalculator"
           >
-            ⏱ Set Reapplication Reminder ({{ dosage.intervalLabel }})
+            ⏱ Start Reapplication Countdown ({{ dosage.intervalLabel }})
           </button>
         </div>
 
         <p class="text-muted text-center border-top pt-3 mb-0" style="font-size: 0.75rem">
-          Based on the Cancer Council Australia teaspoon rule and the clinical standard of 2 mg/cm².
+          Based on Cancer Council Australia's standard dosage recommendation: 1 teaspoon (~5ml) per limb, face/neck, front torso, and back torso (clinical standard: 2 mg/cm²).
         </p>
       </div>
     </section>
 
-    <!-- ── Reapplication Reminder ────────────────────────────────── -->
-    <section class="card shadow-sm" ref="reminderSection">
+    <!-- ── Reapplication Reminder Timer (US3.2) ────────────────────── -->
+    <section class="card shadow-sm border-0" ref="reminderSection">
       <div class="card-body p-4 d-flex flex-column gap-4">
         <div>
           <h2 class="h5 fw-bold mb-1">⏱ Reapplication Reminder</h2>
-          <p class="text-muted small mb-0">Set a timer to remind yourself when it's time to reapply sunscreen.</p>
+          <p class="text-muted small mb-0">
+            Set an automated reminder timer to ensure uninterrupted sun protection while spending time outdoors.
+          </p>
         </div>
 
         <!-- Interval selector -->
         <div>
-          <label class="form-label fw-semibold text-uppercase text-muted" style="font-size: 0.78rem; letter-spacing: 0.05em">Remind me every</label>
-          <div class="d-flex gap-2">
+          <label class="form-label fw-bold text-uppercase text-muted small mb-2" style="letter-spacing: 0.5px">
+            Reminder Interval
+          </label>
+          <div class="d-flex gap-2 flex-wrap">
             <button
               v-for="opt in intervalOptions"
               :key="opt.seconds"
-              class="interval-btn btn flex-fill fw-semibold"
+              class="interval-btn btn flex-fill fw-bold py-2"
               :class="{ selected: selectedInterval === opt.seconds }"
               :disabled="timerRunning"
-              @click="selectedInterval = opt.seconds"
+              @click="setIntervalOption(opt.seconds)"
             >
               {{ opt.label }}
             </button>
           </div>
         </div>
 
-        <!-- Countdown display -->
+        <!-- Circular Countdown Display -->
         <div class="timer-wrap mx-auto">
           <svg class="timer-ring" viewBox="0 0 120 120">
             <circle cx="60" cy="60" r="52" class="ring-bg" />
             <circle
               cx="60" cy="60" r="52"
               class="ring-progress"
-              :stroke="timerFinished ? '#e63946' : '#f77f00'"
+              :stroke="timerFinished ? '#e63946' : uvInfo.color"
               :stroke-dasharray="ringCircumference"
               :stroke-dashoffset="ringOffset"
             />
@@ -122,29 +150,35 @@
         </div>
 
         <!-- Alert when finished -->
-        <div v-if="timerFinished" class="alert alert-danger d-flex align-items-start gap-3 mb-0">
-          <span style="font-size: 1.5rem; flex-shrink: 0">☀️</span>
+        <div v-if="timerFinished" class="alert alert-danger d-flex align-items-start gap-3 mb-0 shadow-sm border-0">
+          <span style="font-size: 1.8rem; line-height: 1">🚨</span>
           <div>
-            <div class="fw-bold" style="font-size: 0.95rem">Time to reapply sunscreen!</div>
-            <div class="small text-muted mt-1">Apply {{ currentDosageSummary }} to all exposed skin before going back out.</div>
+            <div class="fw-bold fs-6">Time to reapply your sunscreen!</div>
+            <div class="small mt-1">
+              Your protection window has lapsed. Apply <strong>{{ currentDosageSummary }}</strong> to all exposed skin before continuing outdoor activities.
+            </div>
           </div>
         </div>
 
-        <!-- Controls -->
-        <div class="d-flex gap-3 justify-content-center">
-          <button v-if="!timerRunning && !timerFinished" class="btn btn-success fw-bold px-4" @click="startTimer">
-            ▶ Start
+        <!-- Timer Controls -->
+        <div class="d-flex gap-2 justify-content-center flex-wrap">
+          <button v-if="!timerRunning && !timerFinished" class="btn btn-success fw-bold px-4 py-2" @click="startTimer">
+            ▶ Start Timer
           </button>
-          <button v-if="timerRunning" class="btn fw-bold px-4" style="background: #f9c74f; color: var(--text-primary);" @click="pauseTimer">
+          <button v-if="timerRunning" class="btn fw-bold px-4 py-2 text-white" style="background: #e67e22" @click="pauseTimer">
             ⏸ Pause
           </button>
           <button
             v-if="timerFinished || timerRunning || remaining < selectedInterval"
-            class="btn btn-outline-secondary fw-bold px-4"
+            class="btn btn-outline-secondary fw-bold px-4 py-2"
             @click="resetTimer"
           >
             ↺ Reset
           </button>
+        </div>
+
+        <div class="text-center text-muted small" style="font-size: 0.74rem">
+          Tip: If swimming, sweating heavily, or towel drying, reapply immediately without waiting for the timer to expire.
         </div>
       </div>
     </section>
@@ -154,9 +188,11 @@
 
 <script setup>
 import { ref, computed, onUnmounted } from 'vue'
+import { uvStore } from '@/stores/uvStore.js'
 
 // ── UV level helpers ──────────────────────────────────────────────
-const uvInput = ref(6)
+// Inherit today's UV if user looked up their location on Page 1
+const uvInput = ref(uvStore.uvIndex != null && uvStore.uvIndex > 0 ? uvStore.uvIndex : 6)
 
 const UV_BANDS = [
   { max: 2,  label: 'Low',       color: '#4caf50', spf: 'SPF 30',  interval: 7200 },
@@ -166,13 +202,13 @@ const UV_BANDS = [
   { max: 99, label: 'Extreme',   color: '#7b2d8b', spf: 'SPF 50+', interval: 5400 },
 ]
 
-const uvInfo = computed(() => UV_BANDS.find(b => uvInput.value <= b.max))
+const uvInfo = computed(() => UV_BANDS.find(b => uvInput.value <= b.max) || UV_BANDS[2])
 
-// ── Coverage options ──────────────────────────────────────────────
+// ── Coverage options (US3.1) ──────────────────────────────────────
 const coverageOptions = [
-  { id: 'face',     icon: '😊', name: 'Face & Neck',         teaspoons: 1, pumps: 5  },
-  { id: 'arms',     icon: '💪', name: 'Face, Neck & Arms',   teaspoons: 3, pumps: 15 },
-  { id: 'fullbody', icon: '🧍', name: 'Full Body',           teaspoons: 7, pumps: 35 },
+  { id: 'face',     icon: '😊', name: 'Face, Neck & Ears', bodyPartHint: '1 tsp (~5ml)',   teaspoons: 1, pumps: 5  },
+  { id: 'arms',     icon: '💪', name: 'Face & Both Arms',  bodyPartHint: '3 tsp (~15ml)',  teaspoons: 3, pumps: 15 },
+  { id: 'fullbody', icon: '🧍', name: 'Full Body Swimwear',bodyPartHint: '7 tsp (~35ml)',  teaspoons: 7, pumps: 35 },
 ]
 const selectedCoverage = ref('arms')
 
@@ -183,7 +219,7 @@ const INTERVAL_NOTES = {
 
 const dosage = computed(() => {
   const band    = uvInfo.value
-  const area    = coverageOptions.find(c => c.id === selectedCoverage.value)
+  const area    = coverageOptions.find(c => c.id === selectedCoverage.value) || coverageOptions[1]
   const intSecs = band.interval
   const intLbl  = intSecs === 7200 ? '2 hours' : '90 min'
   return {
@@ -191,26 +227,32 @@ const dosage = computed(() => {
     teaspoons:     area.teaspoons,
     pumps:         area.pumps,
     intervalLabel: intLbl,
-    note: `Reapply ${INTERVAL_NOTES[intSecs]} or after swimming/sweating. Apply 20 minutes before going outside.`,
+    note: `Reapply ${INTERVAL_NOTES[intSecs]} or immediately after swimming/sweating. Apply 20 minutes before heading outdoors.`,
   }
 })
 
 const currentDosageSummary = computed(() =>
-  `${dosage.value.teaspoons} teaspoon${dosage.value.teaspoons > 1 ? 's' : ''} (≈ ${dosage.value.pumps} pumps) of ${dosage.value.spf}`
+  `${dosage.value.teaspoons} teaspoon${dosage.value.teaspoons > 1 ? 's' : ''} (≈ ${dosage.value.pumps} bottle pumps) of ${dosage.value.spf}`
 )
 
-// ── Reminder / timer ──────────────────────────────────────────────
+// ── Reapplication Reminder Timer (US3.2) ──────────────────────────
 const intervalOptions = [
-  { label: '90 minutes', seconds: 5400 },
-  { label: '2 hours',    seconds: 7200 },
+  { label: '⚡ Demo (10 sec)', seconds: 10 },
+  { label: '90 minutes (High UV)', seconds: 5400 },
+  { label: '2 hours (Standard)',   seconds: 7200 },
 ]
-const selectedInterval = ref(7200)
-const remaining        = ref(7200)
+const selectedInterval = ref(5400)
+const remaining        = ref(5400)
 const timerRunning     = ref(false)
 const timerFinished    = ref(false)
 const reminderSection  = ref(null)
 
 let _interval = null
+
+function setIntervalOption(secs) {
+  selectedInterval.value = secs
+  resetTimer()
+}
 
 const formattedTime = computed(() => {
   const t = remaining.value
@@ -223,9 +265,9 @@ const formattedTime = computed(() => {
 
 const timerStatusLabel = computed(() => {
   if (timerFinished.value) return 'Reapply now!'
-  if (timerRunning.value)  return 'until next application'
+  if (timerRunning.value)  return 'time remaining'
   if (remaining.value < selectedInterval.value) return 'paused'
-  return 'ready'
+  return 'ready to start'
 })
 
 // SVG ring progress
@@ -235,15 +277,35 @@ const ringOffset = computed(() => {
   return ringCircumference * (1 - progress)
 })
 
+function playChime() {
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+    const osc = audioCtx.createOscillator()
+    const gain = audioCtx.createGain()
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(587.33, audioCtx.currentTime) // D5
+    osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.15) // A5
+    gain.gain.setValueAtTime(0.3, audioCtx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6)
+    osc.connect(gain)
+    gain.connect(audioCtx.destination)
+    osc.start()
+    osc.stop(audioCtx.currentTime + 0.6)
+  } catch {
+    // Audio context not allowed without interaction
+  }
+}
+
 function startTimer() {
   timerFinished.value = false
   timerRunning.value  = true
   _interval = setInterval(() => {
     if (remaining.value <= 1) {
-      remaining.value   = 0
-      timerRunning.value = false
+      remaining.value     = 0
+      timerRunning.value  = false
       timerFinished.value = true
       clearInterval(_interval)
+      playChime()
     } else {
       remaining.value -= 1
     }
@@ -266,6 +328,7 @@ function setReminderFromCalculator() {
   const intSecs = uvInfo.value.interval
   selectedInterval.value = intSecs
   resetTimer()
+  startTimer()
   reminderSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
@@ -281,42 +344,48 @@ onUnmounted(() => clearInterval(_interval))
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   font-weight: 800;
   color: #fff;
   flex-shrink: 0;
   transition: background 0.2s;
 }
 
-/* ── Coverage & interval toggle buttons ─────────────────────────── */
+/* ── Coverage & interval buttons ────────────────────────────────── */
 .coverage-btn {
   flex: 1;
-  min-width: 110px;
+  min-width: 120px;
   border: 2px solid var(--border);
-  background: var(--bg);
+  background: var(--surface);
   border-radius: var(--radius);
-  transition: border-color 0.2s, background 0.2s;
+  transition: border-color 0.2s, background 0.2s, transform 0.2s;
+}
+
+.coverage-btn:hover {
+  transform: translateY(-2px);
 }
 
 .coverage-btn.selected {
   border-color: var(--color-high);
-  background: #fff4ec;
+  background: #fff5ee;
 }
 
 .interval-btn {
   border: 2px solid var(--border);
-  background: var(--bg);
+  background: var(--surface);
   border-radius: 10px;
+  font-size: 0.84rem;
   transition: border-color 0.2s, background 0.2s;
 }
 
 .interval-btn.selected {
   border-color: var(--color-high);
-  background: #fff4ec;
+  background: #fff5ee;
+  color: var(--text-primary);
 }
 
 .interval-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
@@ -328,7 +397,7 @@ onUnmounted(() => clearInterval(_interval))
 
 .result-divider {
   width: 1px;
-  height: 40px;
+  height: 44px;
   background: var(--border);
   flex-shrink: 0;
 }
@@ -336,8 +405,8 @@ onUnmounted(() => clearInterval(_interval))
 /* ── Timer ring ──────────────────────────────────────────────────── */
 .timer-wrap {
   position: relative;
-  width: 160px;
-  height: 160px;
+  width: 170px;
+  height: 170px;
 }
 
 .timer-ring {
@@ -370,7 +439,7 @@ onUnmounted(() => clearInterval(_interval))
 }
 
 .timer-display {
-  font-size: 1.75rem;
+  font-size: 1.85rem;
   font-weight: 800;
   letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
@@ -384,28 +453,19 @@ onUnmounted(() => clearInterval(_interval))
 
 @keyframes pulse {
   0%, 100% { transform: scale(1); }
-  50%       { transform: scale(1.05); }
+  50%       { transform: scale(1.06); }
 }
 
 .timer-label {
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   color: var(--text-secondary);
   text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-/* ── Alert slide-in ─────────────────────────────────────────────── */
-.alert {
-  animation: slide-in 0.3s ease;
-}
-
-@keyframes slide-in {
-  from { opacity: 0; transform: translateY(-8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* ── Responsive ──────────────────────────────────────────────────── */
 @media (max-width: 480px) {
   .result-divider { width: 100%; height: 1px; }
-  .coverage-btn   { min-width: 90px; }
+  .coverage-btn   { min-width: 95px; }
 }
 </style>

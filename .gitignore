@@ -424,5 +424,9 @@ FodyWeavers.xsd
 # SQLite database
 data/uv.db
 
+# Production build output
+dist/
+dist-ssr/
 
 doc/
+
